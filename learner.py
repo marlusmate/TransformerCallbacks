@@ -119,7 +119,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[2]
+        self.yb= data[1]
         self.cbs.before_batch()
         self._do_one_batch()
         self.cbs.after_batch()
@@ -134,7 +134,7 @@ class Learner:
         self.epoch_accuracy, self.epoch_loss = 0.,0.        
         self._do_epoch_train()
         self._do_epoch_validate(dl=self.dls_valid)
-        print("Epoch Loss: ", self.epoch_loss, print(" # Epoch Accuracy: ", self.epoch_accuracy))
+        print(" # Epoch Loss: ", self.epoch_loss, "\n # Epoch Accuracy: ", self.epoch_accuracy)
 
     def _do_epoch_validate(self, ds_idx=1, dl=None):
         print("Val Epoch:")
