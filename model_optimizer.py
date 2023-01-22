@@ -64,7 +64,7 @@ def build_adamw(model, epsilon, betas, lr, we_decay):
 
 
 
-def set_weight_decay(model, skip_list=('norm'), skip_keywords=()):
+def set_weight_decay(model, skip_list=(), skip_keywords=('norm')):
     has_decay = []
     no_decay = []
 
@@ -79,6 +79,7 @@ def set_weight_decay(model, skip_list=('norm'), skip_keywords=()):
             has_decay.append(param)
     return [{'params': has_decay},
             {'params': no_decay, 'weight_decay': 0.}]
+
 
 
 def check_keywords_in_name(name, keywords=()):
