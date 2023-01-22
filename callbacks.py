@@ -80,20 +80,27 @@ def one_val_batch(xb, yb, learner):
     loss = learner.cb.learn.loss_func(learner.cb.learn.model(xb), yb)
     if not learner.cb.after_loss(loss): return
 
-def all_batches(dl, learn):
+def train_batches(dl, learn):
     for xb, pv,  yb in dl:
         one_batch(xb, yb, learn)
         if learn.cb.do_stop(): return
 
+def val_batches(dl, learn):
+    for xb, pv,  yb in dl:
+        one_val_batch(xb, yb, learn)
+        if learn.cb.do_stop(): return
+
 def fit(epochs, learn):
     if not learn.cb.begin_fit(): return
+    learn.cb = learn.cb.cbs[0]
     for epoch in range(epochs):
-        # HOTFTIX 
-        learn.cb = learn.cb.cbs[0]
+        # HOTFTIX         
         if not learn.cb.begin_epoch(epoch): continue
-        all_batches(learn.train_dl, learn)
+        train_batches(learn.train_dl, learn)
 
         if learn.cb.begin_validate():
-            with no_grad(): all_batches(learn.valid_dl, learn)
+            with no_grad(): val_batches(learn.valid_dl, learn)
         if learn.cb.do_stop() or not learn.cb.after_epoch(): break
     learn.cb.after_fit()
+
+
