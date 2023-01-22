@@ -67,40 +67,5 @@ class CallbackHandler():
         return res
 
 
-def one_batch(xb, yb, learner):
-    if not learner.cb.begin_batch(xb, yb): return
-    loss = learner.cb.learn.loss_func(learner.cb.learn.model(xb), yb)
-    if not learner.cb.after_loss(loss): return
-    loss.backward()
-    if learner.cb.after_backward(): learner.cb.learn.opt.step()
-    if learner.cb.after_step(): learner.cb.learn.opt.zero_grad()
-
-def one_val_batch(xb, yb, learner):
-    if not learner.cb.begin_batch(xb, yb): return
-    loss = learner.cb.learn.loss_func(learner.cb.learn.model(xb), yb)
-    if not learner.cb.after_loss(loss): return
-
-def train_batches(dl, learn):
-    for xb, pv,  yb in dl:
-        one_batch(xb, yb, learn)
-        if learn.cb.do_stop(): return
-
-def val_batches(dl, learn):
-    for xb, pv,  yb in dl:
-        one_val_batch(xb, yb, learn)
-        if learn.cb.do_stop(): return
-
-def fit(epochs, learn):
-    if not learn.cb.begin_fit(): return
-    learn.cb = learn.cb.cbs[0]
-    for epoch in range(epochs):
-        # HOTFTIX         
-        if not learn.cb.begin_epoch(epoch): continue
-        train_batches(learn.train_dl, learn)
-
-        if learn.cb.begin_validate():
-            with no_grad(): val_batches(learn.valid_dl, learn)
-        if learn.cb.do_stop() or not learn.cb.after_epoch(): break
-    learn.cb.after_fit()
 
 

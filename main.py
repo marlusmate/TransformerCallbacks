@@ -39,7 +39,8 @@ opt = build_adamw(model, epsilon=0.0000001, betas=[0.9, 0.999], lr=0.00001, we_d
 sched = build_scheduler(config, opt, n_iter)
 #look for link in text to see simple_net, mnist_loss, opt, dl, valid_dl initializations
 learner = Learner(model, loss, opt, sched, train_loader, val_loader, cb=cb) 
-fit(2, learn=learner)
+learner.fit(2)
+
 
 model = vit_encoder()
 
