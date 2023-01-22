@@ -6,6 +6,7 @@ from torch import nn, optim
 from fastai.optimizer import OptimWrapper
 from fastcore.foundation import L
 import numpy as np
+import mlflow
 
 def norm_bias_params(m, with_bias=True):
     "Return all bias and BatchNorm parameters"
@@ -87,8 +88,12 @@ class Learner:
 
     def metrics(self):
         acc = (self.pred.argmax(dim=1) == self.yb).float().mean()
-        self.epoch_accuracy += acc / self.n_iter
-        self.epoch_loss += self.loss / self.n_iter
+        if self.training:
+            self.epoch_accuracy += acc / self.n_iter
+            self.epoch_loss += self.loss / self.n_iter
+        else:
+            self.epoch_val_accuracy += acc / self.n_iter
+            self.epoch_val_loss += self.loss / self.n_iter
 
     def all_batches(self):
         self.n_iter = len(self.dl)
@@ -110,8 +115,8 @@ class Learner:
             self.loss = self.loss_grad.clone()
 
         #self('after_loss')
-        print('Batch Loss: ', self.loss)
-        if not self.training: self.metrics()
+        #print('Batch Loss: ', self.loss)
+        self.metrics()
         if not self.training or not len(self.yb): return
         self._do_grad_opt()
 
@@ -119,7 +124,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[1]
+        self.yb= data[2]
         self.cbs.before_batch()
         self._do_one_batch()
         self.cbs.after_batch()
@@ -131,10 +136,17 @@ class Learner:
         self.all_batches()
 
     def _do_epoch(self):
-        self.epoch_accuracy, self.epoch_loss = 0.,0.        
+        self.epoch_accuracy, self.epoch_loss = 0.,0.
+        self.epoch_val_accuracy, self.epoch_val_loss = 0.,0.        
         self._do_epoch_train()
         self._do_epoch_validate(dl=self.dls_valid)
-        print(" # Epoch Loss: ", self.epoch_loss, "\n # Epoch Accuracy: ", self.epoch_accuracy)
+        print(
+                    f"Epoch : {self.epoch+1} - loss : {self.epoch_loss:.4f} - acc: {self.epoch_accuracy:.4f} - val_loss : {self.epoch_val_loss:.4f} - val_acc: {self.epoch_val_accuracy:.4f}\n"
+                    )
+        mlflow.log_metric("loss_train_epoch", self.epoch_loss, step=self.cbs.train_iter)
+        mlflow.log_metric("acc_train_epoch", self.epoch_accuracy, step=self.cbs.train_iter)
+        mlflow.log_metric("loss_val_epoch", self.epoch_val_loss, step=self.cbs.train_iter)
+        mlflow.log_metric("acc_val_epoch", self.epoch_val_accuracy, step=self.cbs.train_iter)
 
     def _do_epoch_validate(self, ds_idx=1, dl=None):
         print("Val Epoch:")

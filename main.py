@@ -18,7 +18,7 @@ config = {
     'epochs': 2,
     'n_inst': 100,
     'train_sz': 0.8,
-    'seq_len': 6,
+    'seq_len': 0,
     'train': {
         'batch_sz': 20
     },
@@ -31,27 +31,31 @@ config = {
         'min_lr': 0.00001,
         'warmup_lr' : 0.00008,
     },
+    'tags' : {
+        'Model': 'vit-tiny-patch16-224',
+        'Type': 'Debug',
+        'Seeds': [0]
+}
+
 }
 
 cb = CallbackHandler([BatchCounter()])
 logger = logging.getLogger('vswin_logger')
-model = SwinTransformer3D(logger=logger).to('cuda')
+#model = SwinTransformer3D(logger=logger).to('cuda')
+model = VisionTransformer().to('cuda')
 freeze_epochs=0,
 frozen_stages=12
 loss = nn.CrossEntropyLoss()
 opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
 
-train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=True, bs=3)
+train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, bs=3)
 n_iter = ceil((config['n_inst'] * config["train_sz"]) /config["train"]["batch_sz"])
 opt = build_adamw(model, epsilon=0.0000001, betas=[0.9, 0.999], lr=0.001, we_decay=0.05)
 sched = build_scheduler(config, opt, n_iter)
 learner = Learner(model, loss, sched, train_loader, val_loader, opt_func) 
-learner.fine_tune(2,2, train_loader.__len__())
 
-
-model = vit_encoder()
-
-cbs = [FinetuningScheduler(ft_schedule="ft_schedule/vit_encoder_ft_schedule.yaml")]
-
-triping = pl.Trainer(limit_train_batches=3, max_epochs=10, callbacks=cbs, gpus=1)
-triping.fit(model=model, train_dataloaders=train_loader, val_dataloaders=val_loader)
+mlflow.end_run()
+mlflow.set_experiment("Markus_Transformer")
+mlflow.set_tags(config['tags'])
+learner.fine_tune(1,5, train_loader.__len__())
+mlflow.end_run()
