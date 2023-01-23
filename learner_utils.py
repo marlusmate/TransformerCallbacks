@@ -6,6 +6,12 @@ from torch import tensor
 import math
 import numpy as np
 from learner_fastai import Learner
+import json
+
+def dump_json(fn, dest):
+    with open(dest, 'w+') as f:
+        json.dump(fn, f, indent=2)
+
 
 class _Annealer:
     def __init__(self, f, start, end): store_attr('f,start,end')
