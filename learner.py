@@ -1,11 +1,12 @@
-from torch import no_grad
+from torch import no_grad, save
 from tqdm import tqdm
-from learner_utils import combine_scheds, combined_cos
+from learner_utils import combine_scheds, combined_cos, dump_json
 from callbacks import ParamScheduler
-from torch import nn, optim
+from torch import nn, optim, tensor, mean
 from fastai.optimizer import OptimWrapper
 from fastcore.foundation import L
 import numpy as np
+import mlflow
 
 def norm_bias_params(m, with_bias=True):
     "Return all bias and BatchNorm parameters"
@@ -15,16 +16,17 @@ def norm_bias_params(m, with_bias=True):
     return res
 
 class Learner:
-    def __init__(self, model, loss_func, sched, train_dl, valid_dl, opt_func):
+    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt_func):
         self.model = model
         self.loss_func = loss_func
         self.opt_func = opt_func
         self.opt = None
-        self.sched = sched
+        #self.sched = sched
         self.dls_train = train_dl
         self.dls_valid = valid_dl
         self.wd_bn_bias=False
         self.train_bn =True
+        self.config = config
         #self.cb = cb
         #self.cb.set_learn(self)
 
@@ -87,8 +89,18 @@ class Learner:
 
     def metrics(self):
         acc = (self.pred.argmax(dim=1) == self.yb).float().mean()
-        self.epoch_accuracy += acc / self.n_iter
-        self.epoch_loss += self.loss / self.n_iter
+        if self.training:
+            self.epoch_accuracy += acc / self.n_iter
+            self.epoch_loss += self.loss / self.n_iter
+            return
+        else:
+            self.epoch_val_accuracy += acc / self.n_iter
+            self.epoch_val_loss += self.loss / self.n_iter
+        if self.testing:
+            self.preds.append(self.pred.cpu().numpy())
+            self.predscl.append(self.pred.argmax(dim=1).cpu().numpy())
+            self.labels.append(self.yb.cpu().numpy())
+
 
     def all_batches(self):
         self.n_iter = len(self.dl)
@@ -110,8 +122,8 @@ class Learner:
             self.loss = self.loss_grad.clone()
 
         #self('after_loss')
-        print('Batch Loss: ', self.loss)
-        if not self.training: self.metrics()
+        #print('Batch Loss: ', self.loss)
+        self.metrics()
         if not self.training or not len(self.yb): return
         self._do_grad_opt()
 
@@ -127,14 +139,22 @@ class Learner:
     def _do_epoch_train(self):
         print("Train Epoch:")
         self.dl = self.dls_train
-        self.training = True        
+        self.training = True       
         self.all_batches()
 
     def _do_epoch(self):
-        self.epoch_accuracy, self.epoch_loss = 0.,0.        
+        self.testing = False
+        self.epoch_accuracy, self.epoch_loss = 0.,0.
+        self.epoch_val_accuracy, self.epoch_val_loss = 0.,0.        
         self._do_epoch_train()
         self._do_epoch_validate(dl=self.dls_valid)
-        print("Epoch Loss: ", self.epoch_loss, print(" # Epoch Accuracy: ", self.epoch_accuracy))
+        print(
+                    f"Epoch : {self.epoch+1} - loss : {self.epoch_loss:.4f} - acc: {self.epoch_accuracy:.4f} - val_loss : {self.epoch_val_loss:.4f} - val_acc: {self.epoch_val_accuracy:.4f}\n"
+                    )
+        mlflow.log_metric("loss_train_epoch", self.epoch_loss, step=self.cbs.train_iter)
+        mlflow.log_metric("acc_train_epoch", self.epoch_accuracy, step=self.cbs.train_iter)
+        mlflow.log_metric("loss_val_epoch", self.epoch_val_loss, step=self.cbs.train_iter)
+        mlflow.log_metric("acc_val_epoch", self.epoch_val_accuracy, step=self.cbs.train_iter)
 
     def _do_epoch_validate(self, ds_idx=1, dl=None):
         print("Val Epoch:")
@@ -177,10 +197,72 @@ class Learner:
         #self.cb = self.cb.cbs[0]
         #self.cb = self.cb.cbs[0]
         self._freeze_stages()
-        self.fit_one_cycle(freeze_epochs, n_iter, base_lr)
-        base_lr /= 2
-        self._unfreeze_block(-2)
+        self.fit_one_cycle(freeze_epochs, n_iter, slice(base_lr))
+        base_lr /= 4
+        self._unfreeze_stages()
         self.fit_one_cycle(epochs-freeze_epochs, n_iter, slice(base_lr/lr_mult, base_lr), pct_start=0.3, div=5)
+
+    def test(self, dls_test):
+        self.preds, self.predscl, self.labels = [], [], []
+        self.testing = True
+        self._do_epoch_validate(dl=dls_test)
+        self.seed = self.config["tags"]["Seeds"][0]
+        
+        import matplotlib.pyplot as plt
+        from seaborn import heatmap
+        from sklearn.metrics import confusion_matrix, f1_score, roc_auc_score, roc_curve
+        from torch.nn.functional import one_hot
+        import os
+
+        # Confusion Matrix
+        cf = confusion_matrix(np.asarray(self.labels), np.asarray(self.predscl))
+        figcf, ax_cf = plt.subplots()
+        ax_cf.set_title("Confusion Matrix " + self.config["model_name"])
+        ax_cf = heatmap(cf, annot=True, cmap="Blues", yticklabels=3, xticklabels=3)
+        ax_cf.set_ylabel("True Class")
+        ax_cf.set_xlabel("Predicted Class ")
+        figcf.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"],"ConfusionMatrix_"+str(self.seed)))
+        mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], 
+            "ConfusionMatrix_"+str(self.seed)+".png"), artifact_path=self.config["model_name"])
+        
+        # Calc ROC, AUC
+        self.labelsoh = one_hot(tensor(self.labels), num_classes=3).squeeze(1)
+        self.preds = tensor(self.preds).squeeze(1)
+        fpr_0, tpr_0, thresholds_0 = roc_curve(self.labelsoh[:,0].numpy(), self.preds[:,0].numpy())
+        fpr_1, tpr_1, thresholds_1 = roc_curve(self.labelsoh[:,1], self.preds[:,1])
+        fpr_2, tpr_2, thresholds_2 = roc_curve(self.labelsoh[:,2], self.preds[:,2])
+        auc_0 = roc_auc_score(self.labelsoh[:,0], self.preds[:,0])
+        auc_1 = roc_auc_score(self.labelsoh[:,1], self.preds[:,1])
+        auc_2 = roc_auc_score(self.labelsoh[:,2], self.preds[:,2])
+        auc = mean(tensor((auc_0, auc_1, auc_2))).numpy()
+
+        # Plot ROC
+        figroc, axroc = plt.subplots()
+        axroc.plot(fpr_0, tpr_0, label="flooded")
+        axroc.plot(fpr_1, tpr_1, label="loaded")
+        axroc.plot(fpr_2, tpr_2, label="dispersed")
+        axroc.plot([0,1],[0,1], 'k--')
+        axroc.set(title="ROC - " + self.config["model_name"], xlabel="False Positive Rate", ylabel="True Negative Rate")
+        axroc.legend()
+        figroc.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"], "ROC_"+self.config["model_name"]))
+        mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], "ROC_"+self.config["model_name"]+".png"), artifact_path=self.config["model_name"])
+
+        # F1 Score
+        self.predsoh=one_hot(tensor(self.predscl), num_classes=3).squeeze(1)
+        f1 = f1_score(tensor(self.labels).squeeze(1).numpy(), tensor(self.predscl).squeeze(1).numpy(), average='weighted')
+        f1_0 = f1_score(self.labelsoh[:,0], self.predsoh[:,0])
+        f1_1 = f1_score(self.labelsoh[:,1], self.predsoh[:,1])
+        f1_2 = f1_score(self.labelsoh[:,2], self.predsoh[:,2])
+
+
+        # Create Metrics Sheet
+        metrics = {'F1-Score': f1, 'AUC': float(auc), 
+                'Flooded': {"F1-Score": f1_0, "AUC": auc_0},
+                'Loaded': {"F1-Score": f1_1, "AUC": auc_1},
+                'Dispersed':{"F1-Score": f1_2, "AUC": auc_2}}
+
+        dump_json(metrics, os.path.join(self.config["eval_dir"], self.config["model_name"], "Metrics_"+self.config["model_name"]+".json"))
+        mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], f"Metrics_"+self.config["model_name"]+".json"), artifact_path=self.config["model_name"])
 
 
 
