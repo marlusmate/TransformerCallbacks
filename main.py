@@ -15,7 +15,7 @@ import os
 from learner_utils import dump_json
 
 config = {
-    'model_name' : 'swin-tiny-patch4-window7-224',
+    'model_name' : 'swinv2-tiny-patch4-window8-256',
     'epochs_total' : 10,
     'epochs_froozen': 5,
     'base_lr' : 2e-3,
@@ -30,7 +30,7 @@ config = {
         
     },
     'tags' : {
-        'Model': 'swinv2-tiny-patch4-window7-224',
+        'Model': 'swinv2-tiny-patch4-window8-256',
         'Type': 'Debug',
         'Seeds': [0]
     },
@@ -42,10 +42,10 @@ dump_json(config, os.path.join(config["eval_dir"], config["model_name"], "Hyperp
 cb = CallbackHandler([BatchCounter()])
 logger = logging.getLogger('vswin_logger')
 train_device = device('cuda:0' if cuda.is_available() else 'cpu')
-#model = SwinTransformer3D(logger=logger, frozen_stages=config["frozen_stages"], patch_size=config["patch_size"], window_size=config["window_size"]).to(train_device)
+model = SwinTransformer3D(logger=logger, frozen_stages=config["frozen_stages"], patch_size=config["patch_size"], window_size=config["window_size"]).to(train_device)
 #model = VisionTransformer(drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to('cuda')
 # model = SwinTransformerV2()
-model = SwinTransformer().to(train_device)
+#model = SwinTransformer().to(train_device)
 loss = nn.CrossEntropyLoss()
 opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
 

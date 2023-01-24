@@ -122,6 +122,12 @@ class WindowAttention3D(nn.Module):
         self.register_buffer("relative_position_index", relative_position_index)
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        if qkv_bias:
+            self.q_bias = nn.Parameter(torch.zeros(dim))
+            self.v_bias = nn.Parameter(torch.zeros(dim))
+        else:
+            self.q_bias = None
+            self.v_bias = None
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
@@ -135,8 +141,14 @@ class WindowAttention3D(nn.Module):
             x: input features with shape of (num_windows*B, N, C)
             mask: (0/-inf) mask with shape of (num_windows, N, N) or None
         """
+
         B_, N, C = x.shape
-        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        qkv_bias = None
+        if self.q_bias is not None:
+            qkv_bias = torch.cat((self.q_bias, torch.zeros_like(self.v_bias, requires_grad=False), self.v_bias))
+        qkv = F.linear(input=x, weight=self.qkv.weight, bias=qkv_bias)
+
+        qkv = qkv.reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # B_, nH, N, C
 
         q = q * self.scale
@@ -276,7 +288,7 @@ class PatchMerging(nn.Module):
         super().__init__()
         self.dim = dim
         self.reduction = nn.Linear(4 * dim, 2 * dim, bias=False)
-        self.norm = norm_layer(4 * dim)
+        self.norm = norm_layer(2 * dim)
 
     def forward(self, x):
         """ Forward function.
@@ -296,8 +308,9 @@ class PatchMerging(nn.Module):
         x3 = x[:, :, 1::2, 1::2, :]  # B D H/2 W/2 C
         x = torch.cat([x0, x1, x2, x3], -1)  # B D H/2 W/2 4*C
 
-        x = self.norm(x)
+        
         x = self.reduction(x)
+        x = self.norm(x)
 
         return x
 
@@ -474,7 +487,7 @@ class SwinTransformer3D(nn.Module):
     """
 
     def __init__(self,
-                 pretrained="Dictionaries/swin-tiny-patch4-window7-224.bin",
+                 pretrained="Dictionaries/swinv2-tiny-patch4-window8-256_renamed.bin",
                  pretrained2d=True,
                  patch_size=(2,4,4),
                  in_chans=1,
@@ -517,7 +530,7 @@ class SwinTransformer3D(nn.Module):
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
             layer = BasicLayer(
-                dim=int(embed_dim * 2**i_layer),
+                dim=int(embed_dim * 2 **i_layer),
                 depth=depths[i_layer],
                 num_heads=num_heads[i_layer],
                 window_size=window_size,
