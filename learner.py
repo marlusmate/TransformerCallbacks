@@ -83,7 +83,7 @@ class Learner:
         self.opt.zero_grad()
 
     def _do_one_batch(self):
-        self.pred = self.model(self.xb)
+        self.pred = self.head(self.model(self.xb))
         #self('after_pred')
         if len(self.yb):
             self.loss_grad = self.loss_func(self.pred, self.yb)
@@ -160,11 +160,14 @@ class Learner:
 
     def pv_learning(self, epochs, n_iter, base_lr, lr_mult=100, pct_start=0.3, div=5.0):
         self.loss = nn.MSELoss()
+        self.head = self.model.pretrain_head
         self.model.frozen_stages = 3
         self._freeze_stages()
         self.fit_one_cycle(epochs, n_iter, base_lr)
         self._unfreeze_stages()
         self.model.frozen_stages = 4
+        self.loss = nn.CrossEntropyLoss()
+        self.head = self.model.tune_head
 
     def fine_tune(self,epochs, n_iter, base_lr=2e-3, freeze_epochs=1, lr_mult=100, pct_start=0.3, div=5.0):
         #if not self.cb.begin_fit(): return

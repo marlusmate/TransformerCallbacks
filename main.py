@@ -2,6 +2,7 @@ from lightningmodule.vit_tiny import VisionTransformer
 from lightningmodule.VSwinV2 import SwinTransformer3D
 from lightningmodule.swinv2 import SwinTransformerV2
 from lightningmodule.swin import SwinTransformer
+from lightningmodule.Modules.vswin import vswin_module
 from Data import build_loader
 import torch.nn as nn
 from torch import save, optim, device, cuda
@@ -42,12 +43,13 @@ dump_json(config, os.path.join(config["eval_dir"], config["model_name"], "Hyperp
 cb = CallbackHandler([BatchCounter()])
 logger = logging.getLogger('vswin_logger')
 train_device = device('cuda:0' if cuda.is_available() else 'cpu')
-#model = SwinTransformer3D(logger=logger, frozen_stages=config["frozen_stages"], patch_size=config["patch_size"], window_size=config["window_size"]).to(train_device)
+model = SwinTransformer3D(logger=logger, frozen_stages=config["frozen_stages"], patch_size=config["patch_size"], window_size=config["window_size"]).to(train_device)
 #model = VisionTransformer(drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to('cuda')
-model = SwinTransformerV2().to(train_device)
+#model = SwinTransformerV2().to(train_device)
 #model = SwinTransformer().to(train_device)
 loss = nn.CrossEntropyLoss()
 opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
+model = vswin_module(self=model)
 
 train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['num_samples'], seq_len=config["seq_len"], 
     seq=False, bs=config["batch_size"], fldir=config["data_dir"], device=train_device

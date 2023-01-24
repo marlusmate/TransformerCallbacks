@@ -506,6 +506,7 @@ class SwinTransformer3D(nn.Module):
                  patch_norm=True,
                  frozen_stages=-1,
                  use_checkpoint=False,
+                 pool_spatial = 'mean',
                  logger=None):
         super().__init__()
 
@@ -517,6 +518,7 @@ class SwinTransformer3D(nn.Module):
         self.frozen_stages = frozen_stages
         self.window_size = window_size
         self.patch_size = patch_size
+        self.global_avg_pool = pool_spatial == 'mean'
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed3D(
@@ -551,12 +553,7 @@ class SwinTransformer3D(nn.Module):
         # add a norm layer for each output
         self.norm = norm_layer(self.num_features)
 
-        # add a classification head (me)
-        self.avgpool = nn.AdaptiveAvgPool1d(1)
-        self.head = nn.Sequential(
-            nn.Linear(self.num_features, 3),
-            nn.Softmax(dim=-1)
-        )
+        self.avgpool = nn.AdaptiveAvgPool1d(1) if self.global_avg_pool else None
 
         self.inflate_weights(logger=logger) 
 
@@ -705,10 +702,7 @@ class SwinTransformer3D(nn.Module):
         x = self.norm(x)
         x = rearrange(x, 'n d h w c -> n c d h w')
         x = rearrange(x, 'n c d h w -> n c (d h w)')
-        #x = x.mean(dim=2)
-        x = self.avgpool(x).squeeze(2)
-        x = self.head(x)
-
+        x = self.avgpool(x) if self.avgpool is not None else x
         return x
 
     def train(self, mode=True):
