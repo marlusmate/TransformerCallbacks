@@ -19,8 +19,9 @@ def augment(self):
     return transforms.Compose(tf_list)
 
 
-def resize_transform(size=256):
+def resize_transform(size=224):
     tf_list =[
+        transforms.CenterCrop((1600, 250)),
         transforms.Resize((size, size)),
         transforms.ToTensor()
         ]
@@ -33,7 +34,7 @@ def tensor_transform():
     return transforms.Compose(tf_list)
         
 
-def build_loader(fl=None, lb=None, bs=51, train_sz=.8, val_sz=.7, seed=0, transform=resize_transform, seq=False, device='cuda', fldir="/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed", seq_len=0, n_inst=3000):
+def build_loader(fl=None, lb=None, bs=51, train_sz=.8, val_sz=.7, seed=0, transform=tensor_transform, seq=False, device='cuda', fldir="/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed", seq_len=0, n_inst=3000):
     if fl is None and lb is None:
         fl, lb = get_multimodal_sequence_paths(file_dirs=[fldir], seq_len=seq_len)
         fl, lb = shuffle_and_dist_mml(fl, lb, n_inst=n_inst, seed=seed)
@@ -175,7 +176,7 @@ class MultimodalImageDataset(Dataset):
         self.label_list = label_list  
         self.pv_params = pv_params
         self.device = device  
-        self.transform = transforms.ToTensor()
+        self.transform = transform()
         self.num_workers=12
     def __len__(self):
         self.filelength = len(self.file_list)

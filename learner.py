@@ -99,7 +99,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[2] # 1 for video
+        self.yb= data[1] # 1 for videolabel, 2 for imagelabel, 1 for pv_value
         self.cbs.before_batch()
         self._do_one_batch()
         self.cbs.after_batch()
@@ -158,12 +158,19 @@ class Learner:
         cbs = ParamScheduler(scheds, n_iter, epochs)
         self.fit(epochs, cbs)
 
-        
+    def pv_learning(self, epochs, n_iter, base_lr, lr_mult=100, pct_start=0.3, div=5.0):
+        self.loss = nn.MSELoss()
+        self.model.frozen_stages = 3
+        self._freeze_stages()
+        self.fit_one_cycle(epochs, n_iter, base_lr)
+        self._unfreeze_stages()
+        self.model.frozen_stages = 4
 
     def fine_tune(self,epochs, n_iter, base_lr=2e-3, freeze_epochs=1, lr_mult=100, pct_start=0.3, div=5.0):
         #if not self.cb.begin_fit(): return
         #self.cb = self.cb.cbs[0]
         #self.cb = self.cb.cbs[0]
+        self.pv_learning(epochs=5, n_iter=n_iter, base_lr=5e-8)
         self._freeze_stages()
         self.fit_one_cycle(freeze_epochs, n_iter, slice(base_lr), pct_start=0.99)
         self._unfreeze_stages()

@@ -146,7 +146,8 @@ class WindowAttention3D(nn.Module):
         qkv_bias = None
         if self.q_bias is not None:
             qkv_bias = torch.cat((self.q_bias, torch.zeros_like(self.v_bias, requires_grad=False), self.v_bias))
-        qkv = F.linear(input=x, weight=self.qkv.weight, bias=qkv_bias)
+        #qkv = F.linear(input=x, weight=self.qkv.weight, bias=qkv_bias)
+        qkv= self.qkv(x)
 
         qkv = qkv.reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # B_, nH, N, C
@@ -487,7 +488,7 @@ class SwinTransformer3D(nn.Module):
     """
 
     def __init__(self,
-                 pretrained="Dictionaries/swinv2-tiny-patch4-window8-256_renamed.bin",
+                 pretrained="Dictionaries/swinv2-tiny-patch4-window7-224_renamed.bin",
                  pretrained2d=True,
                  patch_size=(2,4,4),
                  in_chans=1,
@@ -551,6 +552,7 @@ class SwinTransformer3D(nn.Module):
         self.norm = norm_layer(self.num_features)
 
         # add a classification head (me)
+        self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.head = nn.Sequential(
             nn.Linear(self.num_features, 3),
             nn.Softmax(dim=-1)
@@ -571,6 +573,7 @@ class SwinTransformer3D(nn.Module):
                 m.eval()
                 for layer_name in m.named_parameters():
                     if  'norm' in layer_name[0] or 'index' in layer_name[0]:
+                        print("Layer skipped: ", layer_name[0])
                         continue
                 for param in m.parameters():
                     param.requires_grad = False
@@ -701,9 +704,9 @@ class SwinTransformer3D(nn.Module):
         x = rearrange(x, 'n c d h w -> n d h w c')
         x = self.norm(x)
         x = rearrange(x, 'n d h w c -> n c d h w')
-        x = rearrange(x, 'n c d h w -> n (d h w) c')
-        x = x.mean(dim=1)
-        #x = self.ad
+        x = rearrange(x, 'n c d h w -> n c (d h w)')
+        #x = x.mean(dim=2)
+        x = self.avgpool(x).squeeze(2)
         x = self.head(x)
 
         return x

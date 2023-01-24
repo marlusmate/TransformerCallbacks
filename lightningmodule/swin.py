@@ -494,7 +494,7 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 load_pretrained='', froozen_stages=4, pretrained="Dictionaries/swin-tiny-patch4-window7-224.bin",
+                 load_pretrained='', frozen_stages=4, pretrained="Dictionaries/swin-tiny-patch4-window7-224.bin",
                  use_checkpoint=False, fused_window_process=False, **kwargs):
         super().__init__()
 
@@ -506,7 +506,7 @@ class SwinTransformer(nn.Module):
         self.num_features = int(embed_dim * 2 ** (self.num_layers - 1))
         self.mlp_ratio = mlp_ratio
         self.load_pretrained = load_pretrained
-        self.frozen_stages = froozen_stages
+        self.frozen_stages = frozen_stages
         self.pretrained = pretrained
 
         # split image into non-overlapping patches
@@ -581,7 +581,7 @@ class SwinTransformer(nn.Module):
                 m = self.layers[i]
                 m.eval()
                 for layer_name in m.named_parameters():
-                    if  'norm' in layer_name[0] or 'index' in layer_name[0]:
+                    if  'norm' in layer_name[0] or 'index' in layer_name[0] or 'bias' in layer_name[0]:
                         continue
                 for param in m.parameters():
                     param.requires_grad = False

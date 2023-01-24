@@ -388,12 +388,12 @@ class VisionTransformer(nn.Module):
         torch.cuda.empty_cache()
 
     def _freeze_stages(self):
-        if self.model.frozen_stages >= 0:
+        if self.frozen_stages >= 0:
             self.model.patch_embed.eval()
             for param in self.model.patch_embed.parameters():
                 param.requires_grad = False
 
-        if self.model.frozen_stages >= 1:
+        if self.frozen_stages >= 1:
             self.model.pos_drop.eval()
             for i in range(0, self.model.frozen_stages):
                 m = self.model.blocks[i]
