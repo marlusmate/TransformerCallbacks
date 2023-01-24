@@ -53,17 +53,7 @@ class Learner:
         self.model._unfreeze_stages()
 
     def _unfreeze_block(self, i):
-        if i == 0:
-            self.patch_embed.eval()
-            for param in self.patch_embed.parameters():
-                param.requires_grad = True
-
-        if i >= 1:
-            self.pos_drop.eval()
-            m = self.layers[i]
-            m.eval()
-            for param in m.parameters():
-                param.requires_grad = False        
+        self.model._unfreeze_block(i)
 
     def metrics(self):
         acc = (self.pred.argmax(dim=1) == self.yb).float().mean()
@@ -109,7 +99,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[2]
+        self.yb= data[2] # 1 for video
         self.cbs.before_batch()
         self._do_one_batch()
         self.cbs.after_batch()
@@ -129,10 +119,10 @@ class Learner:
         print(
                     f"Epoch : {self.epoch+1} - loss : {self.epoch_loss:.4f} - acc: {self.epoch_accuracy:.4f} - val_loss : {self.epoch_val_loss:.4f} - val_acc: {self.epoch_val_accuracy:.4f}\n"
                     )
-        mlflow.log_metric("loss_train_epoch", self.epoch_loss, step=self.cbs.train_iter)
-        mlflow.log_metric("acc_train_epoch", self.epoch_accuracy, step=self.cbs.train_iter)
-        mlflow.log_metric("loss_val_epoch", self.epoch_val_loss, step=self.cbs.train_iter)
-        mlflow.log_metric("acc_val_epoch", self.epoch_val_accuracy, step=self.cbs.train_iter)
+        mlflow.log_metric("loss_train_epoch", self.epoch_loss, step=self.epoch+1)
+        mlflow.log_metric("acc_train_epoch", self.epoch_accuracy, step=self.epoch+1)
+        mlflow.log_metric("loss_val_epoch", self.epoch_val_loss, step=self.epoch+1)
+        mlflow.log_metric("acc_val_epoch", self.epoch_val_accuracy, step=self.epoch+1)
 
     def _do_epoch_validate(self, ds_idx=1, dl=None):
         print("Val Epoch:")
@@ -156,7 +146,7 @@ class Learner:
         self._do_fit()
         
 
-    def fit_one_cycle(self, epochs, n_iter, lr_max=None, div=25., div_final=1e5, pct_start=.25, moms=(0.95,0.85,0.95)):
+    def fit_one_cycle(self, epochs, n_iter, lr_max=None, div=25., div_final=1e5, pct_start=0.25, cbs=None, reset_opt=False, start_epoch=0, moms=(0.95,0.85,0.95)):
         #if not self.cb.begin_fit(): return
         #self.opt.defaults['lr'] = self.lr_max if lr_max is None else lr_max
         if self.opt is None: self.create_opt()
@@ -170,15 +160,21 @@ class Learner:
 
         
 
-    def fine_tune(self, epochs, freeze_epochs, n_iter, base_lr=2e-3, lr_mult=100):
+    def fine_tune(self,epochs, n_iter, base_lr=2e-3, freeze_epochs=1, lr_mult=100, pct_start=0.3, div=5.0):
         #if not self.cb.begin_fit(): return
         #self.cb = self.cb.cbs[0]
         #self.cb = self.cb.cbs[0]
         self._freeze_stages()
-        self.fit_one_cycle(freeze_epochs, n_iter, slice(base_lr))
-        base_lr /= 4
+        self.fit_one_cycle(freeze_epochs, n_iter, slice(base_lr), pct_start=0.99)
         self._unfreeze_stages()
-        self.fit_one_cycle(epochs-freeze_epochs, n_iter, slice(base_lr/lr_mult, base_lr), pct_start=0.3, div=5)
+        self.fit_one_cycle(epochs, n_iter, lr_max=8e-5, pct_start=0.6, div=div)
+        """
+        for melt_epoch in range(epochs):
+            layer_idx = 3 - int(melt_epoch)
+            base_lr /= 4
+            self._unfreeze_block(i=layer_idx)
+            self.fit_one_cycle(1, n_iter, slice(base_lr/lr_mult, base_lr), pct_start=0.6, div=div)
+        """
 
     def save_model(self, dest):
         save(self.model, dest)

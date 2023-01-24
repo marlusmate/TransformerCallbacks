@@ -474,7 +474,7 @@ class SwinTransformer3D(nn.Module):
     """
 
     def __init__(self,
-                 pretrained="Dictionaries/swinv2-tiny-patch4-window7-224.bin",
+                 pretrained="Dictionaries/swin-tiny-patch4-window7-224.bin",
                  pretrained2d=True,
                  patch_size=(2,4,4),
                  in_chans=1,
@@ -489,7 +489,7 @@ class SwinTransformer3D(nn.Module):
                  attn_drop_rate=0.,
                  drop_path_rate=0.2,
                  norm_layer=nn.LayerNorm,
-                 patch_norm=False,
+                 patch_norm=True,
                  frozen_stages=-1,
                  use_checkpoint=False,
                  logger=None):
@@ -508,7 +508,6 @@ class SwinTransformer3D(nn.Module):
         self.patch_embed = PatchEmbed3D(
             patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None)
-
         self.pos_drop = nn.Dropout(p=drop_rate)
 
         # stochastic depth
@@ -557,6 +556,9 @@ class SwinTransformer3D(nn.Module):
             for i in range(0, self.frozen_stages):
                 m = self.layers[i]
                 m.eval()
+                for layer_name in m.named_parameters():
+                    if  'norm' in layer_name[0] or 'index' in layer_name[0]:
+                        continue
                 for param in m.parameters():
                     param.requires_grad = False
 
@@ -585,7 +587,7 @@ class SwinTransformer3D(nn.Module):
             m = self.layers[i]
             m.eval()
             for param in m.parameters():
-                param.requires_grad = False
+                param.requires_grad = True
 
     def inflate_weights(self, logger):
         """Inflate the swin2d parameters to swin3d.
@@ -612,7 +614,7 @@ class SwinTransformer3D(nn.Module):
         for k in attn_mask_keys:
             del state_dict[k]
 
-        state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].unsqueeze(2).repeat(1,1,self.patch_size[0],1,1) / self.patch_size[0]
+        state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].unsqueeze(2).repeat(1,1,self.patch_size[0],1,1).sum(dim=1).unsqueeze(1) / self.patch_size[0]
 
         # bicubic interpolate relative_position_bias_table if not match
         relative_position_bias_table_keys = [k for k in state_dict.keys() if "relative_position_bias_table" in k]
@@ -688,6 +690,7 @@ class SwinTransformer3D(nn.Module):
         x = rearrange(x, 'n d h w c -> n c d h w')
         x = rearrange(x, 'n c d h w -> n (d h w) c')
         x = x.mean(dim=1)
+        #x = self.ad
         x = self.head(x)
 
         return x
