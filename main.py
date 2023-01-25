@@ -16,11 +16,11 @@ import os
 from learner_utils import dump_json
 
 config = {
-    'model_name' : 'swinv2-tiny-patch4-window7-224',
-    'epochs_total' : 10,
-    'epochs_froozen': 1,
+    'model_name' : 'swin-tiny-patch4-window7-224_scratch',
+    'epochs_total' : 1,
+    'epochs_froozen': 0,
     'base_lr' : 1e-3,
-    'num_samples': 2000,
+    'num_samples': 200,
     'train_size': 0.7,
     'seq_len': 0,
     'batch_size': 21,
@@ -31,8 +31,8 @@ config = {
         
     },
     'tags' : {
-        'Model': 'swinv2-tiny-patch4-window7-224',
-        'Type': 'BaseTraun',
+        'Model': 'swin-tiny-patch4-window7-224_scratch',
+        'Type': 'BaseLineTrain',
         'Seeds': [0]
     },
     'eval_dir' : "Evaluation",
@@ -43,13 +43,13 @@ dump_json(config, os.path.join(config["eval_dir"], config["model_name"], "Hyperp
 cb = CallbackHandler([BatchCounter()])
 logger = logging.getLogger('vswin_logger')
 train_device = device('cuda:0' if cuda.is_available() else 'cpu')
-model = SwinTransformer3D(logger=logger, frozen_stages=config["frozen_stages"], patch_size=config["patch_size"], window_size=config["window_size"]).to(train_device)
+#model = SwinTransformer3D(logger=logger, frozen_stages=config["frozen_stages"], patch_size=config["patch_size"], window_size=config["window_size"]).to(train_device)
 #model = VisionTransformer(drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to('cuda')
 #model = SwinTransformerV2().to(train_device)
-#model = SwinTransformer().to(train_device)
+model = SwinTransformer(load_pretrained="skip").to(train_device)
 loss = nn.CrossEntropyLoss()
 opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
-model = vswin_module(self=model)
+#model = vswin_module(self=model)
 
 train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['num_samples'], seq_len=config["seq_len"], 
     seq=False, bs=config["batch_size"], fldir=config["data_dir"], device=train_device
@@ -61,7 +61,8 @@ mlflow.end_run()
 mlflow.set_experiment("Markus_Transformer")
 mlflow.set_tags(config['tags'])
 mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"], ), artifact_path=config["model_name"])
-learner.fine_tune(epochs=config["epochs_total"], freeze_epochs=config["epochs_froozen"], n_iter=train_loader.__len__(), base_lr=config["base_lr"])
+#learner.fine_tune(epochs=config["epochs_total"], freeze_epochs=config["epochs_froozen"], n_iter=train_loader.__len__(), base_lr=config["base_lr"])
+learner.fit_one_cycle(config["epochs_total"], train_loader.__len__(), lr_max=8e-5)
 learner.test(test_loader)
 
 mlflow.end_run()

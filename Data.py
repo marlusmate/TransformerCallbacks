@@ -19,7 +19,7 @@ def augment(self):
     return transforms.Compose(tf_list)
 
 
-def resize_transform(size=224):
+def resize_transform(size=258):
     tf_list =[
         transforms.CenterCrop((1600, 250)),
         transforms.Resize((size, size)),

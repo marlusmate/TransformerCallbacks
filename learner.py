@@ -83,7 +83,7 @@ class Learner:
         self.opt.zero_grad()
 
     def _do_one_batch(self):
-        self.pred = self.head(self.model(self.xb))
+        self.pred = self.model(self.xb)
         #self('after_pred')
         if len(self.yb):
             self.loss_grad = self.loss_func(self.pred, self.yb)
@@ -99,7 +99,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[1] # 1 for videolabel, 2 for imagelabel, 1 for pv_value
+        self.yb= data[2] # 1 for videolabel, 2 for imagelabel, 1 for pv_value
         self.cbs.before_batch()
         self._do_one_batch()
         self.cbs.after_batch()
