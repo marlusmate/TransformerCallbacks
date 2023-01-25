@@ -17,8 +17,8 @@ from learner_utils import dump_json
 
 config = {
     'model_name' : 'swin-tiny-patch4-window7-224_scratch',
-    'epochs_total' : 1,
-    'epochs_froozen': 0,
+    'epochs_total' : 2,
+    'epochs_froozen': 1,
     'base_lr' : 1e-3,
     'num_samples': 200,
     'train_size': 0.7,
@@ -36,11 +36,10 @@ config = {
         'Seeds': [0]
     },
     'eval_dir' : "Evaluation",
-    'data_dir' : "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed"
+    'data_dir' : "C:/Users/MarkOne/Envoirements/da_transformer/Lib/site-packages/fastai"# "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed"
 }
 dump_json(config, os.path.join(config["eval_dir"], config["model_name"], "Hyperparameters.json"))
 
-cb = CallbackHandler([BatchCounter()])
 logger = logging.getLogger('vswin_logger')
 train_device = device('cuda:0' if cuda.is_available() else 'cpu')
 #model = SwinTransformer3D(logger=logger, frozen_stages=config["frozen_stages"], patch_size=config["patch_size"], window_size=config["window_size"]).to(train_device)
@@ -60,9 +59,10 @@ learner = Learner(config, model, loss, train_loader, val_loader, opt_func)
 mlflow.end_run()
 mlflow.set_experiment("Markus_Transformer")
 mlflow.set_tags(config['tags'])
+mlflow.start_run(run_name=config["model_name"])
 mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"], ), artifact_path=config["model_name"])
 #learner.fine_tune(epochs=config["epochs_total"], freeze_epochs=config["epochs_froozen"], n_iter=train_loader.__len__(), base_lr=config["base_lr"])
-learner.fit_one_cycle(config["epochs_total"], train_loader.__len__(), lr_max=8e-5)
+learner.fine_tune(config["epochs_total"], train_loader.__len__(), lr_max=8e-5)
 learner.test(test_loader)
 
 mlflow.end_run()

@@ -288,6 +288,7 @@ class VisionTransformer(nn.Module):
             no_embed_class=False,
             pre_norm=False,
             fc_norm=None,
+            pv_norm=None,
             drop_rate=0.,
             attn_drop_rate=0.,
             drop_path_rate=0.,
@@ -297,6 +298,8 @@ class VisionTransformer(nn.Module):
             act_layer=None,
             block_fn=Block,
             pre_logits=False,
+            pv_pred_level = [10, 11, 12],
+            pv_params = ["rpm", "flow_rate", "temperature"],
             pretrained="Dictionaries/vit-tiny-patch16-224.bin",
             frozen_stages=12,
             no_weight_decay = 'norm'
@@ -328,6 +331,7 @@ class VisionTransformer(nn.Module):
         assert global_pool in ('', 'avg', 'token')
         assert class_token or global_pool != 'token'
         use_fc_norm = global_pool == 'avg' if fc_norm is None else fc_norm
+        use_pv_norm = global_pool == 'avg' if pv_norm is None else pv_norm
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
         act_layer = act_layer or nn.GELU
 
@@ -338,9 +342,10 @@ class VisionTransformer(nn.Module):
         self.no_embed_class = no_embed_class
         self.grad_checkpointing = False
         self.pre_logits = pre_logits
-        self.pretrained=pretrained 
-        #self.freeze_epochs = freeze_epochs
+        self.pretrained = pretrained 
         self.frozen_stages = frozen_stages
+        self.pred_levels = pv_pred_level if pv_pred_level is not None else None
+        self.pv_params = pv_params if pv_params is not None else None
 
         self.patch_embed = embed_layer(
             img_size=img_size,
@@ -349,6 +354,7 @@ class VisionTransformer(nn.Module):
             embed_dim=embed_dim,
             bias=not pre_norm,  # disable bias if pre-norm is used (e.g. CLIP)
         )
+
         num_patches = self.patch_embed.num_patches
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim)) if class_token else None
@@ -373,6 +379,15 @@ class VisionTransformer(nn.Module):
             )
             for i in range(depth)])
         self.norm = norm_layer(embed_dim) if not use_fc_norm else nn.Identity()
+
+        # Pv_pred Head
+        self.pv_norm = norm_layer(self.embed_dim) if use_pv_norm else nn.Identity()
+        self.rpm_head = nn.Linear(self.num_features, 1) if "rpm" in self.pv_params else None
+        self.rpm_level = pv_pred_level[0] if pv_pred_level[0] is not None else None
+        self.gfl_head = nn.Linear(self.num_features, 1) if "gfl" in self.pv_params else None
+        self.gfl_level = pv_pred_level[1] if pv_pred_level[1] is not None else None
+        self.temp_head = nn.Linear(self.num_features, 1) if "temperature" in self.pv_params else None
+        self.gfl_level = pv_pred_level[2] if pv_pred_level[2] is not None else None
 
         # Classifier Head
         self.fc_norm = norm_layer(embed_dim) if use_fc_norm else nn.Identity()
@@ -415,33 +430,9 @@ class VisionTransformer(nn.Module):
                 for param in m.parameters():
                     param.requires_grad = True     
 
-    def _init_weights(self, m):
-        # this fn left here for compat with downstream users
-        init_weights_vit_timm(m)
-
-    @torch.jit.ignore()
-    def load_pretrained(self, checkpoint_path, prefix=''):
-        print("u should have own function")
-        #_load_weights(self, checkpoint_path, prefix)
-
     @torch.jit.ignore
     def no_weight_decay(self):
         return {'pos_embed', 'cls_token', 'dist_token'}
-
-    @torch.jit.ignore
-    def group_matcher(self, coarse=False):
-        return dict(
-            stem=r'^cls_token|pos_embed|patch_embed',  # stem and embed
-            blocks=[(r'^blocks\.(\d+)', None), (r'^norm', (99999,))]
-        )
-
-    @torch.jit.ignore
-    def set_grad_checkpointing(self, enable=True):
-        self.grad_checkpointing = enable
-
-    @torch.jit.ignore
-    def get_classifier(self):
-        return self.head
 
     def reset_classifier(self, num_classes: int, global_pool=None):
         self.num_classes = num_classes

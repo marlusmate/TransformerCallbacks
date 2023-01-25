@@ -2,7 +2,8 @@ from torch import no_grad, save
 from tqdm import tqdm
 from learner_utils import combine_scheds, combined_cos, dump_json
 from callbacks import ParamScheduler
-from torch import nn, optim, tensor, mean
+from torch import nn, tensor, mean
+from functools import partial
 from fastai.optimizer import OptimWrapper
 from fastcore.foundation import L
 import numpy as np
@@ -20,22 +21,25 @@ class Learner:
         self.model = model
         self.loss_func = loss_func
         self.opt_func = opt_func
-        self.opt = None
-        #self.sched = sched
         self.dls_train = train_dl
         self.dls_valid = valid_dl
         self.wd_bn_bias=False
         self.train_bn =True
         self.config = config
-        #self.cb = cb
-        #self.cb.set_learn(self)
 
-    def _bn_bias_state(self, with_bias): return norm_bias_params(self.model, with_bias).map(self.opt.state)
+    def _bn_bias_state(self, with_bias): 
+        return norm_bias_params(self.model, with_bias).map(self.opt.state)
+
+    def get_cl_loss(self):
+        self.loss = nn.CrossEntropyLoss()
+
+    def get_pv_loss(self):
+        self.loss = nn.MSELoss()
 
     def create_opt(self):
-        #if isinstance(self.opt_func, partial):
-            #if 'lr' in self.opt_func.keywords:
-                #self.lr = self.opt_func.keywords['lr']
+        if isinstance(self.opt_func, partial):
+            if 'lr' in self.opt_func.keywords:
+                self.lr = self.opt_func.keywords['lr']
         if isinstance(self.opt_func, OptimWrapper):
             self.opt = self.opt_func
             self.opt.clear_state()
@@ -69,7 +73,6 @@ class Learner:
             self.predscl.append(self.pred.argmax(dim=1).cpu().numpy())
             self.labels.append(self.yb.cpu().numpy())
 
-
     def all_batches(self):
         self.n_iter = len(self.dl)
         for o in enumerate(self.dl): self.one_batch(*o)
@@ -84,13 +87,9 @@ class Learner:
 
     def _do_one_batch(self):
         self.pred = self.model(self.xb)
-        #self('after_pred')
         if len(self.yb):
             self.loss_grad = self.loss_func(self.pred, self.yb)
             self.loss = self.loss_grad.clone()
-
-        #self('after_loss')
-        #print('Batch Loss: ', self.loss)
         self.metrics()
         if not self.training or not len(self.yb): return
         self._do_grad_opt()
@@ -132,7 +131,7 @@ class Learner:
         with no_grad(): self.all_batches()
 
     def _do_fit(self):
-        self.cbs.before_fit()
+        #self.cbs.before_fit()
         for epoch in range(self.epochs):
             self.epoch = epoch
             self._do_epoch()
@@ -189,11 +188,6 @@ class Learner:
     def save_model(self, dest):
         save(self.model, dest)
         print("Model abgespeichert")
-
-    def save_learner(self, dest):
-        
-        save(self, dest)
-        print("learner abgespeichert")
 
     def test(self, dls_test):
         self.preds, self.predscl, self.labels = [], [], []
