@@ -122,6 +122,12 @@ class WindowAttention3D(nn.Module):
         self.register_buffer("relative_position_index", relative_position_index)
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        if qkv_bias:
+            self.q_bias = nn.Parameter(torch.zeros(dim))
+            self.v_bias = nn.Parameter(torch.zeros(dim))
+        else:
+            self.q_bias = None
+            self.v_bias = None
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
@@ -135,8 +141,15 @@ class WindowAttention3D(nn.Module):
             x: input features with shape of (num_windows*B, N, C)
             mask: (0/-inf) mask with shape of (num_windows, N, N) or None
         """
+
         B_, N, C = x.shape
-        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        qkv_bias = None
+        if self.q_bias is not None:
+            qkv_bias = torch.cat((self.q_bias, torch.zeros_like(self.v_bias, requires_grad=False), self.v_bias))
+        #qkv = F.linear(input=x, weight=self.qkv.weight, bias=qkv_bias)
+        qkv= self.qkv(x)
+
+        qkv = qkv.reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # B_, nH, N, C
 
         q = q * self.scale
@@ -276,7 +289,7 @@ class PatchMerging(nn.Module):
         super().__init__()
         self.dim = dim
         self.reduction = nn.Linear(4 * dim, 2 * dim, bias=False)
-        self.norm = norm_layer(4 * dim)
+        self.norm = norm_layer(2 * dim)
 
     def forward(self, x):
         """ Forward function.
@@ -296,8 +309,9 @@ class PatchMerging(nn.Module):
         x3 = x[:, :, 1::2, 1::2, :]  # B D H/2 W/2 C
         x = torch.cat([x0, x1, x2, x3], -1)  # B D H/2 W/2 4*C
 
-        x = self.norm(x)
+        
         x = self.reduction(x)
+        x = self.norm(x)
 
         return x
 
@@ -474,14 +488,14 @@ class SwinTransformer3D(nn.Module):
     """
 
     def __init__(self,
-                 pretrained="Dictionaries/swinv2-tiny-patch4-window7-224.bin",
+                 pretrained="Dictionaries/swinv2-tiny-patch4-window7-224_renamed.bin",
                  pretrained2d=True,
                  patch_size=(2,4,4),
                  in_chans=1,
                  embed_dim=96,
                  depths=[2, 2, 6, 2],
                  num_heads=[3, 6, 12, 24],
-                 window_size=(2,7,7),
+                 window_size=(1,7,7),
                  mlp_ratio=4.,
                  qkv_bias=True,
                  qk_scale=None,
@@ -489,9 +503,10 @@ class SwinTransformer3D(nn.Module):
                  attn_drop_rate=0.,
                  drop_path_rate=0.2,
                  norm_layer=nn.LayerNorm,
-                 patch_norm=False,
+                 patch_norm=True,
                  frozen_stages=-1,
                  use_checkpoint=False,
+                 pool_spatial = 'mean',
                  logger=None):
         super().__init__()
 
@@ -503,12 +518,12 @@ class SwinTransformer3D(nn.Module):
         self.frozen_stages = frozen_stages
         self.window_size = window_size
         self.patch_size = patch_size
+        self.global_avg_pool = pool_spatial == 'mean'
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed3D(
             patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None)
-
         self.pos_drop = nn.Dropout(p=drop_rate)
 
         # stochastic depth
@@ -518,7 +533,7 @@ class SwinTransformer3D(nn.Module):
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
             layer = BasicLayer(
-                dim=int(embed_dim * 2**i_layer),
+                dim=int(embed_dim * 2 **i_layer),
                 depth=depths[i_layer],
                 num_heads=num_heads[i_layer],
                 window_size=window_size,
@@ -538,11 +553,7 @@ class SwinTransformer3D(nn.Module):
         # add a norm layer for each output
         self.norm = norm_layer(self.num_features)
 
-        # add a classification head (me)
-        self.head = nn.Sequential(
-            nn.Linear(self.num_features, 3),
-            nn.Softmax(dim=-1)
-        )
+        self.avgpool = nn.AdaptiveAvgPool1d(1) if self.global_avg_pool else None
 
         self.inflate_weights(logger=logger) 
 
@@ -557,6 +568,10 @@ class SwinTransformer3D(nn.Module):
             for i in range(0, self.frozen_stages):
                 m = self.layers[i]
                 m.eval()
+                for layer_name in m.named_parameters():
+                    if  'norm' in layer_name[0] or 'index' in layer_name[0]:
+                        print("Layer skipped: ", layer_name[0])
+                        continue
                 for param in m.parameters():
                     param.requires_grad = False
 
@@ -585,7 +600,7 @@ class SwinTransformer3D(nn.Module):
             m = self.layers[i]
             m.eval()
             for param in m.parameters():
-                param.requires_grad = False
+                param.requires_grad = True
 
     def inflate_weights(self, logger):
         """Inflate the swin2d parameters to swin3d.
@@ -612,7 +627,7 @@ class SwinTransformer3D(nn.Module):
         for k in attn_mask_keys:
             del state_dict[k]
 
-        state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].unsqueeze(2).repeat(1,1,self.patch_size[0],1,1) / self.patch_size[0]
+        state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].unsqueeze(2).repeat(1,1,self.patch_size[0],1,1).sum(dim=1).unsqueeze(1) / self.patch_size[0]
 
         # bicubic interpolate relative_position_bias_table if not match
         relative_position_bias_table_keys = [k for k in state_dict.keys() if "relative_position_bias_table" in k]
@@ -686,10 +701,8 @@ class SwinTransformer3D(nn.Module):
         x = rearrange(x, 'n c d h w -> n d h w c')
         x = self.norm(x)
         x = rearrange(x, 'n d h w c -> n c d h w')
-        x = rearrange(x, 'n c d h w -> n (d h w) c')
-        x = x.mean(dim=1)
-        x = self.head(x)
-
+        x = rearrange(x, 'n c d h w -> n c (d h w)')
+        x = self.avgpool(x) if self.avgpool is not None else x
         return x
 
     def train(self, mode=True):

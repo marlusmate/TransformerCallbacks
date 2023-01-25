@@ -1,15 +1,14 @@
-from lightningmodule.vit_module import vit_encoder
 from lightningmodule.vit_tiny import VisionTransformer
 from lightningmodule.VSwinV2 import SwinTransformer3D
-from finetuning_scheduler import FinetuningScheduler
+from lightningmodule.swinv2 import SwinTransformerV2
+from lightningmodule.swin import SwinTransformer
+from lightningmodule.Modules.vswin import vswin_module
 from Data import build_loader
-import pytorch_lightning as pl
 import torch.nn as nn
-from torch import save, optim
+from torch import save, optim, device, cuda
 from callbacks import *
 from learner import Learner
 from model_optimizer import build_adamw
-from lr_scheduler import build_scheduler
 from math import ceil
 from fastai.optimizer import OptimWrapper
 from logger import logging
@@ -17,52 +16,59 @@ import os
 from learner_utils import dump_json
 
 config = {
-    'model_name' : 'vit-tiny-patch16-224',
-    'epochs_total': 7,
-    'epochs_froozen': 3,
-    'n_inst': 6000,
-    'train_sz': 0.8,
+    'model_name' : 'swin-tiny-patch4-window7-224_scratch',
+    'epochs_total' : 1,
+    'epochs_froozen': 0,
+    'base_lr' : 1e-3,
+    'num_samples': 200,
+    'train_size': 0.7,
     'seq_len': 0,
+    'batch_size': 21,
+    'frozen_stages' : 4,
+    'patch_size' : (1,4,4),
+    'window_size' : (1,8,8),
     'train': {
-        'batch_sz': 20
-    },
-    'scheduler': {
-        'warmup_ep': 0,
-        'decay_ep': 5,
-        'ml_step': [],
-        'name': 'cosine',
-        'warmup_prefix': True,
-        'min_lr': 0.00001,
-        'warmup_lr' : 0.00008,
+        
     },
     'tags' : {
-        'Model': 'vit-tiny-patch16-224',
-        'Type': 'Debug',
+        'Model': 'swin-tiny-patch4-window7-224_scratch',
+        'Type': 'BaseLineTrain',
         'Seeds': [0]
     },
-    'eval_dir' : "Evaluation"
+    'eval_dir' : "Evaluation",
+    'data_dir' : "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed"
 }
 dump_json(config, os.path.join(config["eval_dir"], config["model_name"], "Hyperparameters.json"))
 
 cb = CallbackHandler([BatchCounter()])
 logger = logging.getLogger('vswin_logger')
-#model = SwinTransformer3D(logger=logger).to('cuda')
-model = VisionTransformer(drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to('cuda')
-freeze_epochs=0,
-frozen_stages=12
+train_device = device('cuda:0' if cuda.is_available() else 'cpu')
+#model = SwinTransformer3D(logger=logger, frozen_stages=config["frozen_stages"], patch_size=config["patch_size"], window_size=config["window_size"]).to(train_device)
+#model = VisionTransformer(drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to('cuda')
+#model = SwinTransformerV2().to(train_device)
+model = SwinTransformer(load_pretrained="skip").to(train_device)
 loss = nn.CrossEntropyLoss()
 opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
+#model = vswin_module(self=model)
 
-train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, bs=3)
-n_iter = ceil((config['n_inst'] * config["train_sz"]) /config["train"]["batch_sz"])
-opt = build_adamw(model, epsilon=0.0000001, betas=[0.9, 0.999], lr=0.001, we_decay=0.05)
-#sched = build_scheduler(config, opt, n_iter)
+train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['num_samples'], seq_len=config["seq_len"], 
+    seq=False, bs=config["batch_size"], fldir=config["data_dir"], device=train_device
+    )
+n_iter = ceil((config["train_size"]*config["num_samples"]*3 /config["batch_size"]))
 learner = Learner(config, model, loss, train_loader, val_loader, opt_func) 
 
 mlflow.end_run()
 mlflow.set_experiment("Markus_Transformer")
 mlflow.set_tags(config['tags'])
 mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"], ), artifact_path=config["model_name"])
-learner.fine_tune(config["epochs_total"],config["epochs_froozen"], n_iter*config["epochs_froozen"])
+#learner.fine_tune(epochs=config["epochs_total"], freeze_epochs=config["epochs_froozen"], n_iter=train_loader.__len__(), base_lr=config["base_lr"])
+learner.fit_one_cycle(config["epochs_total"], train_loader.__len__(), lr_max=8e-5)
 learner.test(test_loader)
+
 mlflow.end_run()
+print("Finetuning, Testing, Logging completed")
+
+learner.save_model("Models/"+config["model_name"]+"/model_finetuned")
+# learner.save_learner("Models/"+config["model_name"]+"learner_finetuned")
+print(config["model_name"]+" - Model, Leaner saved")
+

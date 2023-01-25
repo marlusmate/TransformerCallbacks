@@ -389,17 +389,31 @@ class VisionTransformer(nn.Module):
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
-            self.patch_embed.eval()
-            for param in self.patch_embed.parameters():
+            self.model.patch_embed.eval()
+            for param in self.model.patch_embed.parameters():
                 param.requires_grad = False
 
         if self.frozen_stages >= 1:
-            self.pos_drop.eval()
-            for i in range(0, self.frozen_stages):
-                m = self.layers[i]
+            self.model.pos_drop.eval()
+            for i in range(0, self.model.frozen_stages):
+                m = self.model.blocks[i]
                 m.eval()
                 for param in m.parameters():
-                    param.requires_grad = False        
+                    param.requires_grad = False  
+
+    def _unfreeze_stages(self):
+        if self.model.frozen_stages >= 0:
+            self.model.patch_embed.eval()
+            for param in self.model.patch_embed.parameters():
+                param.requires_grad = True
+
+        if self.model.frozen_stages >= 1:
+            self.model.pos_drop.eval()
+            for i in range(0, self.model.frozen_stages):
+                m = self.model.blocks[i]
+                m.eval()
+                for param in m.parameters():
+                    param.requires_grad = True     
 
     def _init_weights(self, m):
         # this fn left here for compat with downstream users
