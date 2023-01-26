@@ -506,7 +506,7 @@ class SwinTransformer3D(nn.Module):
         self.frozen_stages = frozen_stages
         self.window_size = window_size
         self.patch_size = patch_size
-        self.global_avg = global_pool == 'mean'
+        self.global_avg = global_pool == 'avg'
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed3D(
@@ -564,8 +564,10 @@ class SwinTransformer3D(nn.Module):
             for i in range(0, self.frozen_stages):
                 m = self.layers[i]
                 m.eval()
-                for param in m.parameters():
-                    param.requires_grad = False
+            for name, param in zip(self.state_dict().keys(), m.parameters()):
+                if 'relative' in name:
+                    continue
+                param.requires_grad = False
 
     def _unfreeze_stages(self):
         if self.frozen_stages >= 0:
@@ -591,8 +593,10 @@ class SwinTransformer3D(nn.Module):
             self.pos_drop.eval()
             m = self.layers[i]
             m.eval()
-            for param in m.parameters():
-                param.requires_grad = False
+            for name, param in zip(self.state_dict().keys(), m.parameters()):
+                if 'index' in name:
+                    continue
+                param.requires_grad = True
 
     def inflate_weights(self, logger):
         """Inflate the swin2d parameters to swin3d.
@@ -662,28 +666,10 @@ class SwinTransformer3D(nn.Module):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
-        """
-        if pretrained:
-            self.pretrained = pretrained
-        if isinstance(self.pretrained, str):
-            self.apply(_init_weights)
-            logger = get_root_logger()
-            logger.info(f'load model from: {self.pretrained}')
-
-            if self.pretrained2d:
-                # Inflate 2D model into 3D model.
-                self.inflate_weights(logger)
-            else:
-                # Directly load 3D model.
-                load_checkpoint(self, self.pretrained, strict=False, logger=logger)
-        elif self.pretrained is None:
-            self.apply(_init_weights)
-        else:
-            raise TypeError('pretrained must be a str or None')
-        """
 
     def forward(self, x):
         """Forward function."""
+        B, _, _, _, _ = x.shape
         x = self.patch_embed(x)
 
         x = self.pos_drop(x)
@@ -693,8 +679,9 @@ class SwinTransformer3D(nn.Module):
 
         x = rearrange(x, 'n c d h w -> n d h w c')
         x = self.norm(x)
-        x = rearrange(x, 'n d h w c -> n c d h w')
-        x = rearrange(x, 'n c d h w -> n (d h w) c')
+        x = rearrange(x, 'n d h w c -> (n h w) c d')
+        x = self.avgpool(x).squeeze(-1)
+        x = rearrange(x, '(n t) c -> n t c', c=self.num_features, n=B)
         x = x.mean(dim=1)
         x = self.head(x)
 
