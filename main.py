@@ -17,41 +17,30 @@ import os
 from learner_utils import dump_json
 
 config = {
-    'model_name' : 'vit-tiny-patch16-224',
-    'epochs_total': 6,
+    'model_name' : 'swin-tiny-patch4-window7-224_pv',
+    'epochs_total': 10,
     'epochs_froozen': 1,
     'n_inst': 2000,
     'train_sz': 0.8,
     'seq_len': 0,
     'batch_size': 20,
-    'train': {
-        
-    },
-    'scheduler': {
-        'warmup_ep': 0,
-        'decay_ep': 5,
-        'ml_step': [],
-        'name': 'cosine',
-        'warmup_prefix': True,
-        'min_lr': 0.00001,
-        'warmup_lr' : 0.00008,
-    },
     'tags' : {
-        'Model': 'vit-tiny-patch16-224',
+        'Model': 'swin-tiny-patch4-window7-224_pv',
         'Type': 'Debug',
         'Seeds': [0]
     },
-    'eval_dir' : "Evaluation"
+    'eval_dir' : "Evaluation",
+    'seed' : 0
 }
 dump_json(config, os.path.join(config["eval_dir"], config["model_name"], "Hyperparameters.json"))
 
 cb = CallbackHandler([BatchCounter()])
 logger = logging.getLogger('vswin_logger')
-#model = SwinTransformer3D(logger=logger).to('cuda')
+model = SwinTransformer3D(logger=logger).to('cuda')
 #model = VisionTransformer(num_classes=3, drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to('cuda')
-model = SwinTransformer().to('cuda')
-loss = nn.CrossEntropyLoss()
-#loss = nn.MSELoss()
+#model = SwinTransformer(num_classes=1, load_weights='', drop_path_rate=0., drop_rate=0., attn_drop_rate=0.).to('cuda')
+#loss = nn.CrossEntropyLoss()
+loss = nn.MSELoss()
 opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
 opf_func = Optimizer
 
@@ -64,6 +53,8 @@ mlflow.end_run()
 mlflow.set_experiment("Markus_Transformer")
 mlflow.set_tags(config['tags'])
 mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"], ), artifact_path=config["model_name"])
-learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=2e-3)
-learner.test(test_loader)
+learner.fit_one_cycle(epochs=config["epochs_total"], n_iter=train_loader.__len__(), lr_max=8e-5)
+#learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=2e-3)
+#learner.test(test_loader)
+learner.test_pv(test_loader)
 mlflow.end_run()

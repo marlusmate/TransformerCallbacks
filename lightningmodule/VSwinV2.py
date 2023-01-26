@@ -476,12 +476,12 @@ class SwinTransformer3D(nn.Module):
     def __init__(self,
                  pretrained="Dictionaries/swinv2-tiny-patch4-window7-224.bin",
                  pretrained2d=True,
-                 patch_size=(2,4,4),
+                 patch_size=(1,4,4),
                  in_chans=1,
                  embed_dim=96,
                  depths=[2, 2, 6, 2],
                  num_heads=[3, 6, 12, 24],
-                 window_size=(2,7,7),
+                 window_size=(1,7,7),
                  mlp_ratio=4.,
                  qkv_bias=True,
                  qk_scale=None,
@@ -492,6 +492,7 @@ class SwinTransformer3D(nn.Module):
                  patch_norm=False,
                  frozen_stages=-1,
                  use_checkpoint=False,
+                 num_classes=3,
                  logger=None):
         super().__init__()
 

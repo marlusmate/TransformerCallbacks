@@ -591,7 +591,7 @@ class SwinTransformer(nn.Module):
             for i in range(0, self.frozen_stages):
                 m = self.layers[i]
                 m.eval()
-                for param in m.parameters():
+                for name, param in zip(m.state_dict().keys(),m.parameters()):
                     param.requires_grad = False
 
     def _unfreeze_stages(self):
