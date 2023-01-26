@@ -17,8 +17,9 @@ def norm_bias_params(m, with_bias=True):
     return res
 
 class Learner:
-    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt_func):
+    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt, opt_func):
         self.model = model
+        self.opt = opt
         self.loss_func = loss_func
         self.opt_func = opt_func
         self.dls_train = train_dl
@@ -110,7 +111,6 @@ class Learner:
         self.all_batches()
 
     def _do_epoch(self):
-        self.testing = False
         self.epoch_accuracy, self.epoch_loss = 0.,0.
         self.epoch_val_accuracy, self.epoch_val_loss = 0.,0.        
         self._do_epoch_train()
@@ -131,7 +131,8 @@ class Learner:
         with no_grad(): self.all_batches()
 
     def _do_fit(self):
-        #self.cbs.before_fit()
+        self.testing = False
+        self.cbs.before_fit()
         for epoch in range(self.epochs):
             self.epoch = epoch
             self._do_epoch()
@@ -140,7 +141,6 @@ class Learner:
     def fit(self, epochs, cbs):
         cbs.learn = self
         self.cbs = cbs
-        #self.opt 
         self.epochs =epochs
         self._do_fit()
         
@@ -169,10 +169,6 @@ class Learner:
         self.head = self.model.tune_head
 
     def fine_tune(self,epochs, n_iter, base_lr=2e-3, freeze_epochs=1, lr_mult=100, pct_start=0.3, div=5.0):
-        #if not self.cb.begin_fit(): return
-        #self.cb = self.cb.cbs[0]
-        #self.cb = self.cb.cbs[0]
-        self.pv_learning(epochs=5, n_iter=n_iter, base_lr=5e-8)
         self._freeze_stages()
         self.fit_one_cycle(freeze_epochs, n_iter, slice(base_lr), pct_start=0.99)
         self._unfreeze_stages()

@@ -65,6 +65,7 @@ class ParamScheduler(Callback):
         self.train_iter = 0
         self.pct_train = 0.
 
+
     def before_batch(self): 
         self._update_val(self.pct_train)
 

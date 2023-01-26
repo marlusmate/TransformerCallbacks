@@ -10,13 +10,13 @@ from callbacks import *
 from learner import Learner
 from model_optimizer import build_adamw
 from math import ceil
-from fastai.optimizer import OptimWrapper
+from fastai.optimizer import OptimWrapper, Optimizer
 from logger import logging
 import os
 from learner_utils import dump_json
 
 config = {
-    'model_name' : 'swin-tiny-patch4-window7-224_scratch',
+    'model_name' : 'vit-tiny-patch16-224',
     'epochs_total' : 2,
     'epochs_froozen': 1,
     'base_lr' : 1e-3,
@@ -31,38 +31,40 @@ config = {
         
     },
     'tags' : {
-        'Model': 'swin-tiny-patch4-window7-224_scratch',
+        'Model': 'vit-tiny-patch16-224',
         'Type': 'BaseLineTrain',
         'Seeds': [0]
     },
     'eval_dir' : "Evaluation",
-    'data_dir' : "C:/Users/MarkOne/Envoirements/da_transformer/Lib/site-packages/fastai"# "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed"
+    'data_dir' : "C:/Users/DEMAESS2/Multimodal_ProcessData/RunTrain"# "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed"
 }
-dump_json(config, os.path.join(config["eval_dir"], config["model_name"], "Hyperparameters.json"))
+dump_json(config, os.path.join(config["eval_dir"], config["model_name"])+"Hyperparameters")
 
 logger = logging.getLogger('vswin_logger')
 train_device = device('cuda:0' if cuda.is_available() else 'cpu')
 #model = SwinTransformer3D(logger=logger, frozen_stages=config["frozen_stages"], patch_size=config["patch_size"], window_size=config["window_size"]).to(train_device)
-#model = VisionTransformer(drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to('cuda')
+model = VisionTransformer(drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to(train_device)
 #model = SwinTransformerV2().to(train_device)
-model = SwinTransformer(load_pretrained="skip").to(train_device)
+#model = SwinTransformer(load_pretrained="").to(train_device)
 loss = nn.CrossEntropyLoss()
 opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
+opt_func = Optimizer
+opt = opt_func(model.parameters(), cbs=None)
 #model = vswin_module(self=model)
 
 train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['num_samples'], seq_len=config["seq_len"], 
     seq=False, bs=config["batch_size"], fldir=config["data_dir"], device=train_device
     )
 n_iter = ceil((config["train_size"]*config["num_samples"]*3 /config["batch_size"]))
-learner = Learner(config, model, loss, train_loader, val_loader, opt_func) 
+learner = Learner(config, model, loss, train_loader, val_loader, opt=opt, opt_func=opt_func) 
 
 mlflow.end_run()
 mlflow.set_experiment("Markus_Transformer")
 mlflow.set_tags(config['tags'])
-mlflow.start_run(run_name=config["model_name"])
+#with mlflow.start_run(run_name=config["model_name"]):
 mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"], ), artifact_path=config["model_name"])
 #learner.fine_tune(epochs=config["epochs_total"], freeze_epochs=config["epochs_froozen"], n_iter=train_loader.__len__(), base_lr=config["base_lr"])
-learner.fine_tune(config["epochs_total"], train_loader.__len__(), lr_max=8e-5)
+learner.fine_tune(config["epochs_total"], train_loader.__len__())
 learner.test(test_loader)
 
 mlflow.end_run()
