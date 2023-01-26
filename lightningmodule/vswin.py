@@ -561,9 +561,9 @@ class SwinTransformer3D(nn.Module):
             for i in range(0, self.frozen_stages):
                 m = self.layers[i]
                 m.eval()
-            for name, param in zip(self.state_dict().keys(), m.parameters()):
-                if 'relative' in name:
-                    continue
+            #for name, param in zip(self.state_dict().keys(), m.parameters()):
+                #if 'relative' in name:
+                    #continue
                 param.requires_grad = False
 
     def _unfreeze_stages(self):

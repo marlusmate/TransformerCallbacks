@@ -7,6 +7,7 @@ from fastai.optimizer import OptimWrapper
 from fastcore.foundation import L
 import numpy as np
 import mlflow
+from functools import partial
 
 def norm_bias_params(m, with_bias=True):
     "Return all bias and BatchNorm parameters"
@@ -33,9 +34,9 @@ class Learner:
     def _bn_bias_state(self, with_bias): return norm_bias_params(self.model, with_bias).map(self.opt.state)
 
     def create_opt(self):
-        #if isinstance(self.opt_func, partial):
-            #if 'lr' in self.opt_func.keywords:
-                #self.lr = self.opt_func.keywords['lr']
+        if isinstance(self.opt_func, partial):
+            if 'lr' in self.opt_func.keywords:
+                self.lr = self.opt_func.keywords['lr']
         if isinstance(self.opt_func, OptimWrapper):
             self.opt = self.opt_func
             self.opt.clear_state()
@@ -191,7 +192,7 @@ class Learner:
             "ConfusionMatrix_"+str(self.seed)+".png"), artifact_path=self.config["model_name"])
         
         # Calc ROC, AUC
-        self.labelsoh = one_hot(tensor(self.labels), num_classes=3).squeeze(1)
+        self.labelsoh = one_hot(tensor(np.array(self.labels)), num_classes=3).squeeze(1)
         self.preds = tensor(self.preds).squeeze(1)
         fpr_0, tpr_0, thresholds_0 = roc_curve(self.labelsoh[:,0].numpy(), self.preds[:,0].numpy())
         fpr_1, tpr_1, thresholds_1 = roc_curve(self.labelsoh[:,1], self.preds[:,1])

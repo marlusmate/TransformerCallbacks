@@ -1,7 +1,8 @@
 from lightningmodule.swin import SwinTransformer
-from lightningmodule.vit_tiny import VisionTransformer
+from lightningmodule.vit import VisionTransformer
 from lightningmodule.vswin import SwinTransformer3D
 from lightningmodule.vswin_multimodal import SwinTransformer3D as MSwinTransformer3D
+from lightningmodule.vivit import VisionTransformer3D
 from Data import build_loader
 import pytorch_lightning as pl
 import torch.nn as nn
@@ -17,16 +18,16 @@ import os
 from learner_utils import dump_json
 
 config = {
-    'model_name' : 'vswin-tiny-patch4-window7-224',
+    'model_name' : 'vivit-tiny-patch16-224',
     'epochs_total': 1,
     'epochs_froozen': 1,
     'n_inst': 100,
     'train_sz': 0.6,
     'seq_len': 4,
-    'batch_size': 1,
-    'base_lr' : 1e-3,
+    'batch_size': 21,
+    'base_lr' : 1e-4,
     'tags' : {
-        'Model': 'vswin-tiny-patch4-window7-224',
+        'Model': 'vivit-tiny-patch16-224',
         'Type': 'Debug',
         'Seeds': [0]
     },
@@ -37,13 +38,14 @@ dump_json(config, os.path.join(config["eval_dir"], config["model_name"], "Hyperp
 
 cb = CallbackHandler([BatchCounter()])
 logger = logging.getLogger('vswin_logger')
-model = MSwinTransformer3D(patch_size=(1,4,4), window_size=(2,7,7), logger=logger).to('cuda')
+#model = MSwinTransformer3D(patch_size=(1,4,4), window_size=(2,7,7), logger=logger).to('cuda')
+model = VisionTransformer3D(img_size=(4,224,224), patch_size=(2,16,16)).to('cuda')
 #model = VisionTransformer(num_classes=3, drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to('cuda')
 #model = SwinTransformer(num_classes=1, load_weights='', drop_path_rate=0., drop_rate=0., attn_drop_rate=0.).to('cuda')
 loss = nn.CrossEntropyLoss()
 #loss = nn.MSELoss()
 opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
-opf_func = Optimizer
+
 
 train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, bs=config["batch_size"])
 #n_iter = ceil((config['n_inst'] * config["train_sz"]) /config["train"]["batch_sz"])

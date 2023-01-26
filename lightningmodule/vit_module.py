@@ -1,4 +1,4 @@
-from lightningmodule.vit_tiny import VisionTransformer
+from lightningmodule.vit import VisionTransformer
 import os
 from torch import optim, nn, utils, Tensor
 import pytorch_lightning as pl

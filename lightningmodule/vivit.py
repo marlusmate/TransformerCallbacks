@@ -108,6 +108,47 @@ def drop_path(x, drop_prob: float = 0., training: bool = False, scale_by_keep: b
     return x * random_tensor
 
 
+class PatchEmbed3D(nn.Module):
+    """ Video to Patch Embedding.
+    Args:
+        patch_size (int): Patch token size. Default: (2,4,4).
+        in_chans (int): Number of input video channels. Default: 3.
+        embed_dim (int): Number of linear projection output channels. Default: 96.
+        norm_layer (nn.Module, optional): Normalization layer. Default: None
+    """
+    def __init__(self, patch_size=(2,4,4), in_chans=1, embed_dim=192, norm_layer=None):
+        super().__init__()
+        self.patch_size = patch_size
+
+        self.in_chans = in_chans
+        self.embed_dim = embed_dim
+
+        self.proj = nn.Conv3d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
+        if norm_layer is not None:
+            self.norm = norm_layer(embed_dim)
+        else:
+            self.norm = None
+
+    def forward(self, x):
+        """Forward function."""
+        # padding
+        _, _, D, H, W = x.size()
+        if W % self.patch_size[2] != 0:
+            x = F.pad(x, (0, self.patch_size[2] - W % self.patch_size[2]))
+        if H % self.patch_size[1] != 0:
+            x = F.pad(x, (0, 0, 0, self.patch_size[1] - H % self.patch_size[1]))
+        if D % self.patch_size[0] != 0:
+            x = F.pad(x, (0, 0, 0, 0, 0, self.patch_size[0] - D % self.patch_size[0]))
+
+        x = self.proj(x)  # B C D Wh Ww
+        if self.norm is not None:
+            D, Wh, Ww = x.size(2), x.size(3), x.size(4)
+            x = x.flatten(2).transpose(1, 2)
+            x = self.norm(x)
+            x = x.transpose(1, 2).view(-1, D, Wh*Ww, self.embed_dim)
+        return x
+
+
 class PatchEmbed(nn.Module):
     """ 2D Image to Patch Embedding
     """
@@ -265,7 +306,7 @@ class Block(nn.Module):
         return x
 
 
-class VisionTransformer(nn.Module):
+class VisionTransformer3D(nn.Module):
     """ Vision Transformer
     A PyTorch impl of : `An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale`
         - https://arxiv.org/abs/2010.11929
@@ -273,8 +314,8 @@ class VisionTransformer(nn.Module):
 
     def __init__(
             self,
-            img_size=224,
-            patch_size=16,
+            img_size=(2,224,224),
+            patch_size=(1,16,16),
             in_chans=1,
             num_classes=3,
             global_pool='token',
@@ -292,13 +333,16 @@ class VisionTransformer(nn.Module):
             attn_drop_rate=0.,
             drop_path_rate=0.,
             weight_init='', # {skip}
-            embed_layer=PatchEmbed,
+            embed_layer=PatchEmbed3D,
             norm_layer=None,
             act_layer=None,
             block_fn=Block,
             pre_logits=False,
             pretrained="Dictionaries/vit-tiny-patch16-224.bin",
             frozen_stages=12,
+            depth_temp=4,
+            num_heads_temp = 3,
+            temporal_pool='cls',
             no_weight_decay = 'norm'
     ):
         """
@@ -338,25 +382,28 @@ class VisionTransformer(nn.Module):
         self.no_embed_class = no_embed_class
         self.grad_checkpointing = False
         self.pre_logits = pre_logits
-        self.pretrained=pretrained 
-        #self.freeze_epochs = freeze_epochs
+        self.temporal_pool = temporal_pool == 'avg'
+        self.temporal_cls = nn.Parameter(torch.zeros(1,1,self.embed_dim)) if not self.temporal_pool else None
+        self.pretrained = pretrained 
         self.frozen_stages = frozen_stages
 
         self.patch_embed = embed_layer(
-            img_size=img_size,
             patch_size=patch_size,
             in_chans=in_chans,
-            embed_dim=embed_dim,
-            bias=not pre_norm,  # disable bias if pre-norm is used (e.g. CLIP)
+            embed_dim=embed_dim
+            #bias=not pre_norm,  # disable bias if pre-norm is used (e.g. CLIP)
         )
-        num_patches = self.patch_embed.num_patches
+        self.patch_size = patch_size
+        num_patches_spatial = (img_size[1] // patch_size[1]) * (img_size[2] // patch_size[2]) 
+        self.patches_temporal = img_size[0] // patch_size[0]
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim)) if class_token else None
-        embed_len = num_patches if no_embed_class else num_patches + self.num_prefix_tokens
-        self.pos_embed = nn.Parameter(torch.randn(1, embed_len, embed_dim) * .02)
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, 1, embed_dim)) if class_token else None
+        embed_len = num_patches_spatial if no_embed_class else num_patches_spatial + self.num_prefix_tokens
+        self.pos_embed = nn.Parameter(torch.randn(1, 1, embed_len, embed_dim) * .02)
         self.pos_drop = nn.Dropout(p=drop_rate)
         self.norm_pre = norm_layer(embed_dim) if pre_norm else nn.Identity()
 
+        # Spatial Attention
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         self.blocks = nn.Sequential(*[
             block_fn(
@@ -374,6 +421,24 @@ class VisionTransformer(nn.Module):
             for i in range(depth)])
         self.norm = norm_layer(embed_dim) if not use_fc_norm else nn.Identity()
 
+        # Temporal Attention
+        dpr_temp = [x.item() for x in torch.linspace(0, drop_path_rate, depth_temp)]  # stochastic depth decay rule
+        self.blocks_temp = nn.Sequential(*[
+            block_fn(
+                dim=embed_dim,
+                num_heads=num_heads_temp,
+                mlp_ratio=mlp_ratio,
+                qkv_bias=qkv_bias,
+                init_values=init_values,
+                drop=drop_rate,
+                attn_drop=attn_drop_rate,
+                drop_path=dpr_temp[i],
+                norm_layer=norm_layer,
+                act_layer=act_layer
+            )
+            for i in range(depth_temp)])
+        self.norm_temp = norm_layer(embed_dim) if not use_fc_norm else nn.Identity()
+
         # Classifier Head
         self.fc_norm = norm_layer(embed_dim) if use_fc_norm else nn.Identity()
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
@@ -384,7 +449,10 @@ class VisionTransformer(nn.Module):
     def init_weights(self, mode=''):
         state_dict = torch.load(self.pretrained, map_location='cpu')
         state_dict['patch_embed.proj.weight'] = torch.sum(state_dict['patch_embed.proj.weight'], dim=1).unsqueeze(1)
-        msg = self.load_state_dict(state_dict, strict=False)
+        state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].unsqueeze(2).repeat(1,1,self.patch_size[0],1,1) / self.patch_size[0]
+        state_dict['cls_token'] = state_dict["cls_token"].unsqueeze(1)
+        state_dict['pos_embed'] = state_dict['pos_embed'].unsqueeze(1)
+        self.load_state_dict(state_dict, strict=False)
         torch.cuda.empty_cache()
 
     def _freeze_stages(self):
@@ -396,10 +464,24 @@ class VisionTransformer(nn.Module):
         if self.frozen_stages >= 1:
             self.pos_drop.eval()
             for i in range(0, self.frozen_stages):
-                m = self.layers[i]
+                m = self.blocks[i]
                 m.eval()
                 for param in m.parameters():
-                    param.requires_grad = False        
+                    param.requires_grad = False 
+
+    def _unfreeze_stages(self):
+        if self.frozen_stages >= 0:
+            self.patch_embed.eval()
+            for param in self.patch_embed.parameters():
+                param.requires_grad = True
+
+        if self.frozen_stages >= 1:
+            self.pos_drop.eval()
+            for i in range(0, self.frozen_stages):
+                m = self.blocks[i]
+                m.eval()
+                for param in m.parameters():
+                    param.requires_grad = True        
 
     def _init_weights(self, m):
         # this fn left here for compat with downstream users
@@ -442,31 +524,42 @@ class VisionTransformer(nn.Module):
             # position embedding does not overlap with class token, add then concat
             x = x + self.pos_embed
             if self.cls_token is not None:
-                x = torch.cat((self.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
+                x = torch.cat((self.cls_token.expand(x.shape[0], x.shape[2], -1, -1), x), dim=2)
         else:
             # original timm, JAX, and deit vit impl
             # pos_embed has entry for class token, concat then add
             if self.cls_token is not None:
-                x = torch.cat((self.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
-            x = x + self.pos_embed
+                x = torch.cat((self.cls_token.expand(x.shape[0], x.shape[1], -1, -1), x), dim=2)
+            x = x + self.pos_embed.expand(-1, self.patches_temporal, -1, -1)
         return self.pos_drop(x)
 
-    def forward_features(self, x):
-        x = self.patch_embed(x)
-        x = self._pos_embed(x)
+    def forward_features_spatial(self, x):
+        B, _, _, _, _ = x.shape
+        x = self.patch_embed(x) #returns B, C, D, H, W
+        x = self._pos_embed(x.view(B, self.patches_temporal, x.shape[-1]*x.shape[-2], self.embed_dim)) #retruns B, D, H*W, C
+        x = x.view(B*self.patches_temporal, -1, self.embed_dim)
         x = self.norm_pre(x)
         x = self.blocks(x)
         x = self.norm(x)
+        x = x.view(B, self.patches_temporal, -1, self.embed_dim)
+        return x
+
+    def forward_features_temporal(self, x):
+        x = x[:,:,0] if not self.cls_token is not None else x[:, :, self.num_prefix_tokens:].mean(dim=-2)
+        if self.temporal_cls is not None:
+            torch.cat((self.temporal_cls.expand(x.shape[0], x.shape[1], -1), x), dim=1)
+        x = self.blocks_temp(x)
         return x
 
     def forward_head(self, x, pre_logits: bool = False):
         if self.global_pool:
-            x = x[:, self.num_prefix_tokens:].mean(dim=1) if self.global_pool == 'avg' else x[:, 0]
+            x = x[:, self.num_prefix_tokens:].mean(dim=1) if self.temporal_cls is None else x[:, 0]
         x = self.fc_norm(x)
         return x if pre_logits else self.head(x)
 
     def forward(self, x):
-        x = self.forward_features(x)
+        x = self.forward_features_spatial(x)   
+        x = self.forward_features_temporal(x)
         x = self.forward_head(x, pre_logits=self.pre_logits)
         return x
 
