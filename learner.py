@@ -83,7 +83,7 @@ class Learner:
         self.pred = self.model(self.xb)
         #self('after_pred')
         if len(self.yb):
-            self.loss_grad = self.loss_func(self.pred.squeeze(1), self.yb)
+            self.loss_grad = self.loss_func(self.pred, self.yb)
             self.loss = self.loss_grad.clone()
 
         #self('after_loss')
@@ -96,7 +96,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[1][:,0]
+        self.yb= data[2]
         self.cbs.before_batch()
         self._do_one_batch()
         self.cbs.after_batch()

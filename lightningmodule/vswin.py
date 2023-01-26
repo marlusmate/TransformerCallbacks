@@ -474,8 +474,9 @@ class SwinTransformer3D(nn.Module):
     """
 
     def __init__(self,
-                 pretrained="Dictionaries/swinv2-tiny-patch4-window7-224.bin",
+                 pretrained="Dictionaries/swin-tiny-patch4-window7-224_renamed.bin",
                  pretrained2d=True,
+                 load_weights = "",
                  patch_size=(1,4,4),
                  in_chans=1,
                  embed_dim=96,
@@ -493,6 +494,7 @@ class SwinTransformer3D(nn.Module):
                  frozen_stages=-1,
                  use_checkpoint=False,
                  num_classes=3,
+                 global_pool = 'avg',
                  logger=None):
         super().__init__()
 
@@ -504,6 +506,7 @@ class SwinTransformer3D(nn.Module):
         self.frozen_stages = frozen_stages
         self.window_size = window_size
         self.patch_size = patch_size
+        self.global_avg = global_pool == 'mean'
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed3D(
@@ -539,13 +542,16 @@ class SwinTransformer3D(nn.Module):
         # add a norm layer for each output
         self.norm = norm_layer(self.num_features)
 
+        self.avgpool = nn.AdaptiveAvgPool1d(1) if self.global_avg else None
+
         # add a classification head (me)
         self.head = nn.Sequential(
-            nn.Linear(self.num_features, 3),
+            nn.Linear(self.num_features, num_classes),
             nn.Softmax(dim=-1)
         )
 
-        self.inflate_weights(logger=logger) 
+        if load_weights != 'skip':
+            self.inflate_weights(logger=logger) 
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
@@ -613,8 +619,9 @@ class SwinTransformer3D(nn.Module):
         for k in attn_mask_keys:
             del state_dict[k]
 
+        state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].sum(dim=1).unsqueeze(1)
         state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].unsqueeze(2).repeat(1,1,self.patch_size[0],1,1) / self.patch_size[0]
-
+        #state_dict['patch_embed.proj.weight'].squeeze(1)
         # bicubic interpolate relative_position_bias_table if not match
         relative_position_bias_table_keys = [k for k in state_dict.keys() if "relative_position_bias_table" in k]
         for k in relative_position_bias_table_keys:

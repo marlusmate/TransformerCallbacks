@@ -168,7 +168,7 @@ class MultimodalImageDataset(Dataset):
         img = ImageOps.grayscale(img)
         #img = rotate(img, 270)
         if self.transform is not None:
-            img = self.transform(img)#.unsqueeze(1)
+            img = self.transform(img).unsqueeze(1)
         fl = U.load_json(pv_fn)
         pvs = tensor([fl[p] for p in self.pv_params])
         lb = tensor(self.label_list[idx])
