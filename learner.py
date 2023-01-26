@@ -47,45 +47,10 @@ class Learner:
             for p in self._bn_bias_state(False): p['force_train'] = True
 
     def _freeze_stages(self):
-        if self.model.frozen_stages >= 0:
-            self.model.patch_embed.eval()
-            for param in self.model.patch_embed.parameters():
-                param.requires_grad = False
-
-        if self.model.frozen_stages >= 1:
-            self.model.pos_drop.eval()
-            for i in range(0, self.model.frozen_stages):
-                m = self.model.blocks[i]
-                m.eval()
-                for param in m.parameters():
-                    param.requires_grad = False  
+        self.model._freeze_stages()
 
     def _unfreeze_stages(self):
-        if self.model.frozen_stages >= 0:
-            self.model.patch_embed.eval()
-            for param in self.model.patch_embed.parameters():
-                param.requires_grad = True
-
-        if self.model.frozen_stages >= 1:
-            self.model.pos_drop.eval()
-            for i in range(0, self.model.frozen_stages):
-                m = self.model.blocks[i]
-                m.eval()
-                for param in m.parameters():
-                    param.requires_grad = True
-
-    def _unfreeze_block(self, i):
-        if i == 0:
-            self.patch_embed.eval()
-            for param in self.patch_embed.parameters():
-                param.requires_grad = True
-
-        if i >= 1:
-            self.pos_drop.eval()
-            m = self.layers[i]
-            m.eval()
-            for param in m.parameters():
-                param.requires_grad = False        
+        self.model._unfreeze_stages()       
 
     def metrics(self):
         acc = (self.pred.argmax(dim=1) == self.yb).float().mean()
@@ -131,7 +96,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[2]
+        self.yb= data[2]#[:,0]
         self.cbs.before_batch()
         self._do_one_batch()
         self.cbs.after_batch()
@@ -197,8 +162,8 @@ class Learner:
         #self.cb = self.cb.cbs[0]
         #self.cb = self.cb.cbs[0]
         self._freeze_stages()
-        self.fit_one_cycle(freeze_epochs, n_iter, slice(base_lr))
-        base_lr /= 4
+        self.fit_one_cycle(freeze_epochs, n_iter, slice(base_lr), pct_start=0.99)
+        base_lr /= 100
         self._unfreeze_stages()
         self.fit_one_cycle(epochs-freeze_epochs, n_iter, slice(base_lr/lr_mult, base_lr), pct_start=0.3, div=5)
 
