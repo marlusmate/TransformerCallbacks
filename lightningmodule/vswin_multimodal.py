@@ -9,6 +9,71 @@ from functools import reduce, lru_cache
 from operator import mul
 from einops import rearrange
 
+class TransformerBlock(nn.Module):
+    def __init__(self, dim, num_heads,mlp_ratio=4., qkv_bias=True, qk_scale=None, 
+                drop=0., attn_drop=0., drop_path=0.,
+                 act_layer=nn.GELU, norm_layer=nn.LayerNorm, use_checkpoint=False):
+        super().__init__()
+        self.dim = dim
+        self.num_heads = num_heads
+        self.mlp_ratio = mlp_ratio
+        self.norm1 = norm_layer(dim)
+        self.temp_attn = DotAttention(dim, num_heads=num_heads, qkv_bias=qkv_bias, 
+            qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
+
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.norm2 = norm_layer(dim)
+        mlp_hidden_dim = int(dim * mlp_ratio)
+        self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+
+    def forward_part1(self, x):
+        x = self.norm1(x)
+        x = self.temp_attn(x)
+
+        return x
+
+    def forward_part2(self, x):
+        return self.drop_path(self.mlp(self.norm2(x)))
+
+    def forward(self, x):
+        """ Forward function.
+        Args:
+            x: Input feature, tensor size (B, D, H, W, C).
+        """
+        shortcut = x
+        x = self.forward_part1(x)
+        x = shortcut + self.drop_path(x)
+        x = x + self.forward_part2(x)
+
+        return x
+
+
+class DotAttention(nn.Module):
+    def __init__(self,dim, num_heads, qk_scale, attn_drop=0., proj_drop=0., qkv_bias=True):
+        super().__init__()
+        self.num_heads = num_heads
+        head_dim = dim // num_heads
+        self.scale = qk_scale or head_dim ** -0.5
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(proj_drop)
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, x):
+        B_, N, C = x.shape
+        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]  # B_, nH, N, C
+
+        q = q * self.scale
+        attn = q @ k.transpose(-2, -1)
+        attn = self.softmax(attn)
+        attn = self.attn_drop(attn)
+        x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        return x
+
 class Mlp(nn.Module):
     """ Multilayer perceptron."""
 
@@ -57,6 +122,8 @@ def window_reverse(windows, window_size, B, D, H, W):
     x = windows.view(B, D // window_size[0], H // window_size[1], W // window_size[2], window_size[0], window_size[1], window_size[2], -1)
     x = x.permute(0, 1, 4, 2, 5, 3, 6, 7).contiguous().view(B, D, H, W, -1)
     return x
+
+
 
 
 def get_window_size(x_size, window_size, shift_size=None):
@@ -492,6 +559,8 @@ class SwinTransformer3D(nn.Module):
                  use_checkpoint=False,
                  num_classes=3,
                  global_pool = 'avg',
+                 temporal_pool = 'cls',
+                 temporal_heads = [3,3],
                  logger=None):
         super().__init__()
 
@@ -538,6 +607,23 @@ class SwinTransformer3D(nn.Module):
 
         # add a norm layer for each output
         self.norm = norm_layer(self.num_features)
+
+        # add temporal Attention
+        self.layer_temporal = nn.ModuleList([])
+        self.temp_avg_pool = temporal_pool == 'avg'
+        self.temporal_cls = nn.Parameter(torch.zeros(1,1,self.num_features)) if not self.temp_avg_pool else None
+        for i, n_heads in enumerate(temporal_heads):
+            layer = TransformerBlock(
+                dim=self.num_features,
+                num_heads = n_heads,
+                mlp_ratio=mlp_ratio,
+                qkv_bias=qkv_bias,
+                qk_scale=qk_scale,
+                drop=drop_rate,
+                attn_drop=attn_drop_rate
+            )
+            self.layer_temporal.append(layer)
+
 
         self.avgpool = nn.AdaptiveAvgPool1d(1) if self.global_avg else None
 
@@ -671,15 +757,23 @@ class SwinTransformer3D(nn.Module):
 
         x = self.pos_drop(x)
 
+        # Spatial Attention
         for layer in self.layers:
             x = layer(x.contiguous())
 
         x = rearrange(x, 'n c d h w -> n d h w c')
         x = self.norm(x)
-        x = rearrange(x, 'n d h w c -> (n h w) c d')
-        x = self.avgpool(x).squeeze(-1)
-        x = rearrange(x, '(n t) c -> n t c', c=self.num_features, n=B)
-        x = x.mean(dim=1)
+        x = rearrange(x, 'n d h w c -> n d c (h w)')
+        x = x.mean(dim=-1)
+
+        # Temporal Attention
+        if self.temporal_cls is not None:
+            cls_token = self.temporal_cls.expand(B, -1, -1)
+            x = torch.cat((cls_token, x), dim=1)
+        for layer in self.layer_temporal:
+            x = layer(x.contiguous())
+        x = self.avgpool(x) if self.temp_avg_pool else x[:,0]
+
         x = self.head(x)
 
         return x

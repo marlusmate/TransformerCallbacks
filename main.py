@@ -1,7 +1,7 @@
 from lightningmodule.swin import SwinTransformer
 from lightningmodule.vit_tiny import VisionTransformer
 from lightningmodule.vswin import SwinTransformer3D
-from finetuning_scheduler import FinetuningScheduler
+from lightningmodule.vswin_multimodal import SwinTransformer3D as MSwinTransformer3D
 from Data import build_loader
 import pytorch_lightning as pl
 import torch.nn as nn
@@ -20,10 +20,11 @@ config = {
     'model_name' : 'vswin-tiny-patch4-window7-224',
     'epochs_total': 1,
     'epochs_froozen': 1,
-    'n_inst': 80,
+    'n_inst': 100,
     'train_sz': 0.6,
-    'seq_len': 8,
-    'batch_size': 5,
+    'seq_len': 4,
+    'batch_size': 1,
+    'base_lr' : 1e-3,
     'tags' : {
         'Model': 'vswin-tiny-patch4-window7-224',
         'Type': 'Debug',
@@ -36,7 +37,7 @@ dump_json(config, os.path.join(config["eval_dir"], config["model_name"], "Hyperp
 
 cb = CallbackHandler([BatchCounter()])
 logger = logging.getLogger('vswin_logger')
-model = SwinTransformer3D(patch_size=(4,4,4), window_size=(2,7,7), logger=logger).to('cuda')
+model = MSwinTransformer3D(patch_size=(1,4,4), window_size=(2,7,7), logger=logger).to('cuda')
 #model = VisionTransformer(num_classes=3, drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to('cuda')
 #model = SwinTransformer(num_classes=1, load_weights='', drop_path_rate=0., drop_rate=0., attn_drop_rate=0.).to('cuda')
 loss = nn.CrossEntropyLoss()
@@ -54,7 +55,7 @@ mlflow.set_experiment("Markus_Transformer")
 mlflow.set_tags(config['tags'])
 mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"], ), artifact_path=config["model_name"])
 #learner.fit_one_cycle(epochs=config["epochs_total"], n_iter=train_loader.__len__(), lr_max=8e-5)
-learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=2e-3)
+learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=config["base_lr"])
 learner.test(test_loader)
 #learner.test_pv(test_loader)
 mlflow.end_run()
