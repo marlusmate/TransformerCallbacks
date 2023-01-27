@@ -66,7 +66,7 @@ class Learner:
         if self.testing:
             self.preds.append(self.pred.cpu()[0].numpy())
             self.predscl.append(self.pred.argmax(dim=1).cpu().numpy())
-            self.labels.append(self.yb.cpu().numpy())
+            self.labels.append(self.yb.cpu()[0].numpy())
 
 
     def all_batches(self):
@@ -253,14 +253,14 @@ class Learner:
 
         pred_rpm = self.preds[:,0]
         pred_gfl = self.preds[:,1]
-        pred_temp = self.pred[:,2]
+        #pred_temp = self.preds[:,2]
         label_rpm = self.labels[:,0]
         label_gfl = self.labels[:,1]
-        label_temp = self.labels[:,2] 
+        #label_temp = self.labels[:,2] 
         mae_rpm = mae(label_rpm,pred_rpm)
         mae_gfl = mae(label_gfl,pred_gfl)
-        mae_tem = mae(label_temp,pred_temp)
-        maes = {'rpm': mae_rpm, 'gfl': mae_gfl, 'temp': mae_tem}
+        #mae_tem = mae(label_temp,pred_temp)
+        maes = {'rpm': mae_rpm, 'gfl': mae_gfl}#, 'temp': mae_tem}
 
         f1 = plt.bar(list(maes.keys()), list(maes.values()))
         plt.ylabel("MAE")
@@ -272,15 +272,14 @@ class Learner:
         # Boxplot 
         diff_rpm = label_rpm-pred_rpm
         diff_gfl = label_gfl-pred_gfl
-        diff_tem = label_temp-pred_temp
-        diff = np.subtract(np.array(self.preds), np.array(self.labels))
-        f, (ax1, ax2, ax3) = plt.subplots(1, 3, sharey=True)
-        ax1.boxplot(diff)
-        ax1.set_title('Delta RPM')
+        #diff_tem = label_temp-pred_temp
+        f, (ax1, ax2) = plt.subplots(1, 2, sharey=True)
+        ax1.boxplot(diff_rpm)
+        ax1.set_title('Delta Stirrer Speed')
         ax2.boxplot(diff_gfl)
-        ax2.set_title('Delta GFL')
-        ax3.boxplot(diff_tem)
-        ax3.set_title('Delta Temp')
+        ax2.set_title('Delta Gas Flow')
+        #ax3.boxplot(diff_tem)
+        #ax3.set_title('Delta Temp')
         plt.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"], "Boxplot_PVP_"+str(self.config["seed"])))
         mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], 
             "Boxplot_PVP_"+str(self.config["seed"])+".png"), artifact_path=self.config["model_name"])

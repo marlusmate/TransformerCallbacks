@@ -204,7 +204,7 @@ class MultimodalImageDataset(Dataset):
     def __init__(self, 
         data_list,  
         label_list, 
-        pv_params=['rpm_normed', 'flow_rate_normed', 'temperature'],
+        pv_params=['rpm_normed', 'flow_rate_normed'],
         transform=transforms.ToTensor(), 
         rpm_max=581.747314453125,
         rpm_min=86.35801696777344,
@@ -249,7 +249,7 @@ class MultimodalDataset(Dataset):
     def __init__(self, 
         data_list,  
         label_list, 
-        pv_params=["rpm_normed", "flow_rate_normed", "temperature"], 
+        pv_params=["rpm_normed", "flow_rate_normed"], 
         transform=transforms.ToTensor(), 
         device="cuda"):
         super(Dataset, self).__init__()
