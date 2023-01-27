@@ -11,6 +11,23 @@ import glob
 import os
 import random
 
+fn_dir = "C:/Users/DEMAESS2/Multimodal_ProcessData/RunResized"
+fn_json = glob.glob(os.path.join(fn_dir,'*.json'))
+
+def norm_rpm_value(value, min=86.35801696777344, max=581.747314453125):
+    return (value-min)/(max-min)
+
+def norm_gfl_value(value, min=86.28138732910156, max=1.4358569383621216):
+    return (value-min)/(max-min)
+
+for fn in fn_json:
+    file = u.load_json(fn)
+    rpm_normed = norm_rpm_value(file["rpm"])
+    gfl_normed = norm_gfl_value(file["flow_rate"])
+    file["rpm_normed"] = rpm_normed
+    file["flow_rate_normed"] = gfl_normed
+    u.dump_json(file, fn)
+
 
 def build_loader(fl=None, lb=None, bs=51, train_sz=.8, val_sz=.7, seed=0, transform=transforms.ToTensor, seq=False, device='cuda', fldir="C:/Users/DEMAESS2/Multimodal_ProcessData/RunTrain", seq_len=0, n_inst=3000):
     if fl is None and lb is None:
@@ -148,14 +165,22 @@ class MultimodalImageDataset(Dataset):
         label_list, 
         pv_params=['rpm', 'flow_rate', 'temperature'],
         transform=transforms.ToTensor(), 
+        rpm_max=581.747314453125,
+        rpm_min=86.35801696777344,
+        gfl_max=86.28138732910156,
+        gfl_min=1.4358569383621216,
         device="cuda"):
         super(Dataset, self).__init__()
         self.file_list = data_list
         self.label_list = label_list  
         self.pv_params = pv_params
         self.device = device  
-        self.transform = transforms.ToTensor()
+        self.transform = transform
         self.num_workers=12
+        self.rpm_max = rpm_max,
+        self.rpm_min = rpm_min,
+        self.gfl_min = gfl_min,
+        self.gfl_max = gfl_max
     def __len__(self):
         self.filelength = len(self.file_list)
         return self.filelength

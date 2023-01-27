@@ -1,8 +1,8 @@
-from lightningmodule.swin import SwinTransformer
-from lightningmodule.vit import VisionTransformer
-from lightningmodule.vswin import SwinTransformer3D
-from lightningmodule.vswin_multimodal import SwinTransformer3D as MSwinTransformer3D
-from lightningmodule.vivit import VisionTransformer3D
+from Modelcode.swin import SwinTransformer
+from Modelcode.vit import VisionTransformer
+from Modelcode.vswin import SwinTransformer3D
+from Modelcode.vswin_multimodal import SwinTransformer3D as MSwinTransformer3D
+from Modelcode.vivit import VisionTransformer3D
 from Data import build_loader
 import pytorch_lightning as pl
 import torch.nn as nn
