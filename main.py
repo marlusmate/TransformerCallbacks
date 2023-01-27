@@ -23,6 +23,9 @@ config = {
     'seq_len': 4,
     'batch_size': 21,
     'base_lr' : 8e-5,
+    'drop_rate' : 0.,
+    'attn_drop_rate' : 0.,
+    'drop_path_rate' : 0.1,
     'tags' : {
         'Model': 'vivit-tiny-patch16-224_scratch',
         'Type': 'Debug',
@@ -36,7 +39,8 @@ dump_json(config, os.path.join(config["eval_dir"], config["model_name"], "Hyperp
 cb = CallbackHandler([BatchCounter()])
 logger = logging.getLogger('vswin_logger')
 #model = MSwinTransformer3D(patch_size=(1,4,4), window_size=(2,7,7), logger=logger).to('cuda')
-model = VisionTransformer3D(num_classes=3,img_size=(4,224,224), patch_size=(2,16,16)).to('cuda')
+model = VisionTransformer3D(num_classes=3,img_size=(4,224,224), patch_size=(2,16,16),
+    drop_rate=config["drop_rate"], attn_drop_rate=config["attn_drop_rate"], drop_path_rate=config["drop_path_rate"]).to('cuda')
 #model = VisionTransformer(num_classes=3, drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to('cuda')
 #model = SwinTransformer(num_classes=1, load_weights='', drop_path_rate=0., drop_rate=0., attn_drop_rate=0.).to('cuda')
 loss = nn.CrossEntropyLoss()
