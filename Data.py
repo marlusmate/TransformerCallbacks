@@ -30,17 +30,8 @@ def norm_rpm_value(value, min=86.35801696777344, max=581.747314453125):
 def norm_gfl_value(value, min=86.28138732910156, max=1.4358569383621216):
     return (value-min)/(max-min)
 
-import numpy as np
-temps =[]
-for fn in fn_json:
-    file = load_json(fn)
-    temps.append(file["temperature"])
-temps = np.array(temps)
-temps.max()
-temps.min()
-print("fretsch")
-
-
+def norm_temp_value(value, min=33.44322204589844, max=33.5531120300293):
+    return (value-min)/(max-min)
 
 """
 for fn in fn_json:
