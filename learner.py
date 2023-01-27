@@ -97,7 +97,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[1].mean(dim=1)[:,0]
+        self.yb= data[2] #.mean(dim=1)[:,0]
         self.cbs.before_batch()
         self._do_one_batch()
         self.cbs.after_batch()
