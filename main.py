@@ -6,7 +6,7 @@ from Modelcode.vivit import VisionTransformer3D
 from Data import build_loader
 import pytorch_lightning as pl
 import torch.nn as nn
-from torch import save, optim
+from torch import device, cuda,  optim
 from callbacks import *
 from learner import Learner
 from model_optimizer import build_adamw
@@ -38,26 +38,26 @@ dump_json(config, os.path.join(config["eval_dir"], config["model_name"], "Hyperp
 
 cb = CallbackHandler([BatchCounter()])
 logger = logging.getLogger('vswin_logger')
-#model = MSwinTransformer3D(patch_size=(1,4,4), window_size=(2,7,7), logger=logger).to('cuda')
-model = VisionTransformer3D(img_size=(4,224,224), patch_size=(2,16,16)).to('cuda')
-#model = VisionTransformer(num_classes=3, drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to('cuda')
-#model = SwinTransformer(num_classes=1, load_weights='', drop_path_rate=0., drop_rate=0., attn_drop_rate=0.).to('cuda')
+train_device = device('cuda:0' if cuda.is_available() else 'cpu')
+#model = MSwinTransformer3D(patch_size=(1,4,4), window_size=(2,7,7), logger=logger).to(train_device)
+model = VisionTransformer3D(img_size=(4,224,224), patch_size=(2,16,16)).to(train_device)
+#model = VisionTransformer(num_classes=3, drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to(train_device)
+#model = SwinTransformer(num_classes=1, load_weights='', drop_path_rate=0., drop_rate=0., attn_drop_rate=0.).to(train_device)
+
 loss = nn.CrossEntropyLoss()
-#loss = nn.MSELoss()
+loss = nn.HuberLoss()
 opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
-
-
-train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, bs=config["batch_size"])
-#n_iter = ceil((config['n_inst'] * config["train_sz"]) /config["train"]["batch_sz"])
-#sched = build_scheduler(config, opt, n_iter)
+train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, bs=config["batch_size"], device=train_device)
 learner = Learner(config, model, loss, train_loader, val_loader, opt_func) 
 
 mlflow.end_run()
 mlflow.set_experiment("Markus_Transformer")
 mlflow.set_tags(config['tags'])
 mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"], ), artifact_path=config["model_name"])
+
 #learner.fit_one_cycle(epochs=config["epochs_total"], n_iter=train_loader.__len__(), lr_max=8e-5)
 learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=config["base_lr"])
 learner.test(test_loader)
 #learner.test_pv(test_loader)
+
 mlflow.end_run()

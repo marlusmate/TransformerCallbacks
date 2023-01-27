@@ -29,7 +29,6 @@ class TransformerBlock(nn.Module):
     def forward_part1(self, x):
         x = self.norm1(x)
         x = self.temp_attn(x)
-
         return x
 
     def forward_part2(self, x):
@@ -633,8 +632,7 @@ class SwinTransformer3D(nn.Module):
             nn.Softmax(dim=-1)
         )
 
-        if load_weights != 'skip':
-            self.inflate_weights(logger=logger) 
+        self.inflate_weights(logger=logger) if load_weights != 'skip' else self.init_weights()
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
@@ -749,6 +747,9 @@ class SwinTransformer3D(nn.Module):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
+
+        for m in self.parameters():
+            _init_weights(m)
 
     def forward(self, x):
         """Forward function."""
