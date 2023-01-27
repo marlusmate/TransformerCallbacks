@@ -242,28 +242,27 @@ class Learner:
         self.preds, self.predscl, self.labels = [], [], []
         self.testing = True
         self._do_epoch_validate(dl=dls_test)
+        self.preds = np.array(self.preds)
+        self.labels = np.array(self.labels)
         self.seed = self.config["tags"]["Seeds"][0]
         # PVP
         #mae
         from sklearn.metrics import mean_absolute_error as mae
         import matplotlib.pyplot as plt
         import os
-        """
-        pred_rpm = preds[:,0]
-        pred_gfl = preds[:,1]
-        pred_temp = pred_[:,2]
-        label_rpm = labels_[:,0]
-        label_gfl = labels_[:,1]
-        label_temp = labels_[:,2] 
+
+        pred_rpm = self.preds[:,0]
+        pred_gfl = self.preds[:,1]
+        pred_temp = self.pred[:,2]
+        label_rpm = self.labels[:,0]
+        label_gfl = self.labels[:,1]
+        label_temp = self.labels[:,2] 
         mae_rpm = mae(label_rpm,pred_rpm)
         mae_gfl = mae(label_gfl,pred_gfl)
         mae_tem = mae(label_temp,pred_temp)
         maes = {'rpm': mae_rpm, 'gfl': mae_gfl, 'temp': mae_tem}
 
         f1 = plt.bar(list(maes.keys()), list(maes.values()))
-        """
-        mae_rpm = mae(self.preds, self.labels)
-        f1 = plt.bar('rpm', mae_rpm)
         plt.ylabel("MAE")
         plt.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"], "MAE_PVP_"+str(self.config["seed"])))
         mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], 
@@ -271,19 +270,17 @@ class Learner:
         plt.close()
         
         # Boxplot 
-        """
-        diff_rpm = label_0-pred_0
-        diff_gfl = label_1-pred_1
-        diff_tem = label_2-pred_2
-        """
+        diff_rpm = label_rpm-pred_rpm
+        diff_gfl = label_gfl-pred_gfl
+        diff_tem = label_temp-pred_temp
         diff = np.subtract(np.array(self.preds), np.array(self.labels))
         f, (ax1, ax2, ax3) = plt.subplots(1, 3, sharey=True)
         ax1.boxplot(diff)
         ax1.set_title('Delta RPM')
-        #ax2.boxplot(diff_gfl)
-       #ax2.set_title('Delta GFL')
-        #ax3.boxplot(diff_tem)
-        #ax3.set_title('Delta Temp')
+        ax2.boxplot(diff_gfl)
+        ax2.set_title('Delta GFL')
+        ax3.boxplot(diff_tem)
+        ax3.set_title('Delta Temp')
         plt.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"], "Boxplot_PVP_"+str(self.config["seed"])))
         mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], 
             "Boxplot_PVP_"+str(self.config["seed"])+".png"), artifact_path=self.config["model_name"])
