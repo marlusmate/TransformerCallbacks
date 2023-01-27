@@ -1,4 +1,4 @@
-from torch import no_grad, save
+from torch import no_grad, save, tensor
 from tqdm import tqdm
 from learner_utils import combine_scheds, combined_cos, dump_json
 from callbacks import ParamScheduler
@@ -54,10 +54,11 @@ class Learner:
         self.model._unfreeze_stages()       
 
     def metrics(self):
-        acc = (self.pred.argmax(dim=1) == self.yb).float().mean()
+        acc = 0
         if self.training:
+            acc = (self.pred.argmax(dim=1) == self.yb).float().mean() if not self.pv_learning else 0
             self.epoch_accuracy += acc / self.n_iter
-            self.epoch_loss += self.loss / self.n_iter
+            self.epoch_loss += self.loss / self.n_iter            
             return
         else:
             self.epoch_val_accuracy += acc / self.n_iter
@@ -80,24 +81,28 @@ class Learner:
         self._step()
         self.opt.zero_grad()
 
-    def _do_one_batch(self):
-        self.pred = self.model(self.xb)
-        #self('after_pred')
-        if len(self.yb):
+    def _do_loss(self):
+        self.loss_grad = 0
+        if self.training and not self.pv_learning:
             self.loss_grad = self.loss_func(self.pred, self.yb)
             self.loss = self.loss_grad.clone()
+        elif self.pv_learning:
+            for i in range(self.params):
+                self.loss_grad += self.loss_func(self.pred[:,i], self.yb[:,i]) * self.loss_we[i]
+            self.loss = self.loss_grad.clone()
+                
 
-        #self('after_loss')
-        #print('Batch Loss: ', self.loss)
+    def _do_one_batch(self):
+        self.pred = self.model(self.xb)
+        self._do_loss()
         self.metrics()
         if not self.training or not len(self.yb): return
         self._do_grad_opt()
 
-
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[2] #.mean(dim=1)[:,0]
+        self.yb= data[1].mean(dim=1)
         self.cbs.before_batch()
         self._do_one_batch()
         self.cbs.after_batch()
@@ -143,7 +148,6 @@ class Learner:
         self.epochs =epochs
         self._do_fit()
         
-
     def fit_one_cycle(self, epochs, n_iter, lr_max=None, div=25., div_final=1e5, pct_start=.25, moms=(0.95,0.85,0.95)):
         #if not self.cb.begin_fit(): return
         #self.opt.defaults['lr'] = self.lr_max if lr_max is None else lr_max
@@ -156,17 +160,20 @@ class Learner:
         cbs = ParamScheduler(scheds, n_iter, epochs)
         self.fit(epochs, cbs)
 
-        
-
     def fine_tune(self, epochs, freeze_epochs, n_iter, base_lr=2e-3, lr_mult=100):
-        #if not self.cb.begin_fit(): return
-        #self.cb = self.cb.cbs[0]
-        #self.cb = self.cb.cbs[0]
         self._freeze_stages()
         self.fit_one_cycle(freeze_epochs, n_iter, slice(base_lr), pct_start=0.99)
         base_lr /= 100
         self._unfreeze_stages()
         self.fit_one_cycle(epochs-freeze_epochs, n_iter, slice(base_lr/lr_mult, base_lr), pct_start=0.3, div=5)
+
+    def pv_learn(self, epochs, params, n_iter, loss_we=[0.6, 0.4], base_lr=2e-3):
+        assert np.array(loss_we).sum() == 1, 'Loss Weights for PV Losses must add up to 1'
+        assert params == len(loss_we), 'every process variable must be one loss weight assigned'
+        self.pv_learning = True
+        self.params = params
+        self.loss_we = loss_we
+        self.fit_one_cycle(epochs, n_iter, lr_max=base_lr)
 
     def test(self, dls_test):
         self.preds, self.predscl, self.labels = [], [], []

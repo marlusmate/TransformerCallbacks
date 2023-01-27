@@ -524,7 +524,7 @@ class VisionTransformer3D(nn.Module):
             # position embedding does not overlap with class token, add then concat
             x = x + self.pos_embed
             if self.cls_token is not None:
-                x = torch.cat((self.cls_token.expand(x.shape[0], x.shape[2], -1, -1), x), dim=2)
+                x = torch.cat((self.cls_token.expand(x.shape[0], x.shape[1], -1, -1), x), dim=2)
         else:
             # original timm, JAX, and deit vit impl
             # pos_embed has entry for class token, concat then add

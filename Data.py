@@ -12,7 +12,7 @@ import os
 import json
 import random
 
-fn_dir = "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed_test/"
+fn_dir = "C:/Users/MarkOne/data/regimeclassification"#/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed_test/"
 fn_json = glob.glob(os.path.join(fn_dir,'*.json'))
 
 def load_json(fn):
@@ -29,7 +29,7 @@ def norm_rpm_value(value, min=86.35801696777344, max=581.747314453125):
 
 def norm_gfl_value(value, min=86.28138732910156, max=1.4358569383621216):
     return (value-min)/(max-min)
-
+"""
 for fn in fn_json:
     file = load_json(fn)
     rpm_normed = norm_rpm_value(file["rpm"])
@@ -37,9 +37,40 @@ for fn in fn_json:
     file["rpm_normed"] = rpm_normed
     file["flow_rate_normed"] = gfl_normed
     dump_json(file, fn)
+"""
+
+def train_transform():
+        tf_list =[
+            #transforms.CenterCrop((1800,380)),
+            transforms.Resize((224,224)),          
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            ]
+        return transforms.Compose(tf_list)
+
+def crop_transform(img_size):
+    tf_list =[
+        transforms.CenterCrop((1800,380)),
+        transforms.Resize((img_size,img_size)),          
+        transforms.ToTensor(),
+        ]
+    return transforms.Compose(tf_list)
+
+def resize_transform(img_size=224):
+    tf_list =[
+        transforms.Resize((img_size,img_size)),
+        ]
+    return transforms.Compose(tf_list)
+
+def tensor_transform():
+    tf_list =[
+        transforms.ToTensor(),
+        ]
+    return transforms.Compose(tf_list)
 
 
-def build_loader(fl=None, lb=None, bs=51, train_sz=.8, val_sz=.7, seed=0, transform=transforms.ToTensor, seq=False, device='cuda', fldir="/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/", seq_len=0, n_inst=3000):
+
+def build_loader(fl=None, lb=None, bs=51, train_sz=.8, val_sz=.7, seed=0, transform=crop_transform(224), seq=False, device='cuda', fldir="/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/", seq_len=0, n_inst=3000):
     if fl is None and lb is None:
         fl, lb = get_multimodal_sequence_paths(file_dirs=[fldir], seq_len=seq_len)
         fl, lb = shuffle_and_dist_mml(fl, lb, n_inst=n_inst, seed=seed)
@@ -173,7 +204,7 @@ class MultimodalImageDataset(Dataset):
     def __init__(self, 
         data_list,  
         label_list, 
-        pv_params=['rpm_normed', 'flow_rate_normed'],
+        pv_params=['rpm_normed', 'flow_rate_normed', 'temperature'],
         transform=transforms.ToTensor(), 
         rpm_max=581.747314453125,
         rpm_min=86.35801696777344,
@@ -218,7 +249,7 @@ class MultimodalDataset(Dataset):
     def __init__(self, 
         data_list,  
         label_list, 
-        pv_params=["rpm_normed", "flow_rate_normed"], 
+        pv_params=["rpm_normed", "flow_rate_normed", "temperature"], 
         transform=transforms.ToTensor(), 
         device="cuda"):
         super(Dataset, self).__init__()
@@ -226,7 +257,7 @@ class MultimodalDataset(Dataset):
         self.label_list = label_list  
         self.pv_params = pv_params
         self.device = device  
-        self.transform = transform()
+        self.transform = transform
 
     def __len__(self):
         self.filelength = len(self.file_list)
