@@ -4,30 +4,30 @@ from Modelcode.vswin import SwinTransformer3D
 from Modelcode.vswin_multimodal import SwinTransformer3D as MSwinTransformer3D
 from Modelcode.vivit import VisionTransformer3D
 from Data import build_loader
-import pytorch_lightning as pl
+#import pytorch_lightning as pl
 import torch.nn as nn
 from torch import device, cuda,  optim
 from callbacks import *
 from learner import Learner
-from model_optimizer import build_adamw
-from lr_scheduler import build_scheduler
-from math import ceil
 from fastai.optimizer import OptimWrapper, Optimizer
 from logger import logging
 import os
 from learner_utils import dump_json
 
 config = {
-    'model_name' : 'vivit-tiny-patch16-224',
-    'epochs_total': 1,
-    'epochs_froozen': 1,
-    'n_inst': 100,
-    'train_sz': 0.6,
+    'model_name' : 'vivit-tiny-patch16-224_scratch',
+    'epochs_total': 10,
+    'epochs_froozen': 0,
+    'n_inst': 1000,
+    'train_sz': 0.8,
     'seq_len': 4,
     'batch_size': 21,
-    'base_lr' : 1e-4,
+    'base_lr' : 8e-5,
+    'drop_rate' : 0.,
+    'attn_drop_rate' : 0.,
+    'drop_path_rate' : 0.1,
     'tags' : {
-        'Model': 'vivit-tiny-patch16-224',
+        'Model': 'vivit-tiny-patch16-224_scratch',
         'Type': 'Debug',
         'Seeds': [0]
     },
@@ -40,7 +40,8 @@ cb = CallbackHandler([BatchCounter()])
 logger = logging.getLogger('vswin_logger')
 train_device = device('cuda:0' if cuda.is_available() else 'cpu')
 #model = MSwinTransformer3D(patch_size=(1,4,4), window_size=(2,7,7), logger=logger).to(train_device)
-model = VisionTransformer3D(img_size=(4,224,224), patch_size=(2,16,16)).to(train_device)
+model = VisionTransformer3D(num_classes=3,img_size=(4,224,224), patch_size=(2,16,16),
+    drop_rate=config["drop_rate"], attn_drop_rate=config["attn_drop_rate"], drop_path_rate=config["drop_path_rate"]).to(train_device)
 #model = VisionTransformer(num_classes=3, drop_path_rate=0.2, drop_rate=.4, attn_drop_rate=0.2).to(train_device)
 #model = SwinTransformer(num_classes=1, load_weights='', drop_path_rate=0., drop_rate=0., attn_drop_rate=0.).to(train_device)
 
