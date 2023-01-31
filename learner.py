@@ -17,20 +17,32 @@ def norm_bias_params(m, with_bias=True):
     return res
 
 class Learner:
-    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt_func):
+    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt_func, patience=1, min_delta=.000):
         self.model = model
         self.loss_func = loss_func
         self.opt_func = opt_func
         self.opt = None
-        #self.sched = sched
         self.dls_train = train_dl
         self.dls_valid = valid_dl
         self.wd_bn_bias=False
         self.train_bn =True
         self.config = config
-        #self.cb = cb
-        #self.cb.set_learn(self)
         self.pv_learning = False
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.last_loss = 0
+        self.min_validation_loss = np.inf
+
+    def early_stop(self, validation_loss):
+        if validation_loss < self.min_validation_loss:
+            self.min_validation_loss = validation_loss
+            self.counter = 0
+        elif abs(validation_loss - self.last_loss) < self.min_delta:
+            self.counter += 1
+            if self.counter >= self.patience:
+                return True
+        return False
 
     def _bn_bias_state(self, with_bias): return norm_bias_params(self.model, with_bias).map(self.opt.state)
 
@@ -122,10 +134,12 @@ class Learner:
         print(
                     f"Epoch : {self.epoch+1} - loss : {self.epoch_loss:.4f} - acc: {self.epoch_accuracy:.4f} - val_loss : {self.epoch_val_loss:.4f} - val_acc: {self.epoch_val_accuracy:.4f}\n"
                     )
-        mlflow.log_metric("loss_train_epoch", self.epoch_loss, step=self.cbs.train_iter)
-        mlflow.log_metric("acc_train_epoch", self.epoch_accuracy, step=self.cbs.train_iter)
-        mlflow.log_metric("loss_val_epoch", self.epoch_val_loss, step=self.cbs.train_iter)
-        mlflow.log_metric("acc_val_epoch", self.epoch_val_accuracy, step=self.cbs.train_iter)
+        mlflow.log_metric("loss_train_epoch", self.epoch_loss, step=self.cbs.epoch)
+        mlflow.log_metric("acc_train_epoch", self.epoch_accuracy, step=self.cbs.epoch)
+        mlflow.log_metric("loss_val_epoch", self.epoch_val_loss, step=self.cbs.epoch)
+        mlflow.log_metric("acc_val_epoch", self.epoch_val_accuracy, step=self.cbs.epoch)
+        self.cbs.epoch += 1
+        self.early_stop(self.epoch_val_loss)
 
     def _do_epoch_validate(self, ds_idx=1, dl=None):
         print("Val Epoch:")

@@ -7,6 +7,7 @@ from torchvision.transforms.functional import rotate
 from torchvision import transforms
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
+from yaml import safe_dump, safe_load
 import glob
 import os
 import json
@@ -14,6 +15,16 @@ import random
 
 fn_dir = "C:/Users/MarkOne/data/regimeclassification"#/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed_test/"
 fn_json = glob.glob(os.path.join(fn_dir,'*.json'))
+
+def load_yaml(fn):
+    with open(fn, 'r') as f:
+        x = safe_load(f)
+    return x
+
+def dump_yaml(file, dest):
+    with open(dest, 'w') as f:
+        safe_dump(file, f)
+    return
 
 def load_json(fn):
     with open(fn, 'r') as f:
