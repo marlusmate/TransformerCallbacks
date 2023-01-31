@@ -30,6 +30,7 @@ class Learner:
         self.config = config
         #self.cb = cb
         #self.cb.set_learn(self)
+        self.pv_learning = False
 
     def _bn_bias_state(self, with_bias): return norm_bias_params(self.model, with_bias).map(self.opt.state)
 
@@ -54,9 +55,8 @@ class Learner:
         self.model._unfreeze_stages()       
 
     def metrics(self):
-        acc = 0
-        if self.training:
-            acc = (self.pred.argmax(dim=1) == self.yb).float().mean() if not self.pv_learning else 0
+        acc = (self.pred.argmax(dim=1) == self.yb).float().mean() if not self.pv_learning else 0
+        if self.training:            
             self.epoch_accuracy += acc / self.n_iter
             self.epoch_loss += self.loss / self.n_iter            
             return
@@ -64,9 +64,9 @@ class Learner:
             self.epoch_val_accuracy += acc / self.n_iter
             self.epoch_val_loss += self.loss / self.n_iter
         if self.testing:
-            self.preds.append(self.pred.cpu()[0].numpy())
+            self.preds.append(self.pred.cpu().numpy())
             self.predscl.append(self.pred.argmax(dim=1).cpu().numpy())
-            self.labels.append(self.yb.cpu()[0].numpy())
+            self.labels.append(self.yb.cpu().numpy())
 
 
     def all_batches(self):
@@ -102,7 +102,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[1].mean(dim=1)
+        self.yb= data[2] #.mean(dim=1)
         self.cbs.before_batch()
         self._do_one_batch()
         self.cbs.after_batch()
@@ -237,6 +237,10 @@ class Learner:
         dump_json(metrics, os.path.join(self.config["eval_dir"], self.config["model_name"], "Metrics_"+self.config["model_name"]+".json"))
         mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], f"Metrics_"+self.config["model_name"]+".json"), artifact_path=self.config["model_name"])
 
+
+    def save_model(self, dest):
+        save(self.model, dest+"/Model")
+        print("Model abgespeichert")
 
     def test_pv(self, dls_test):
         self.preds, self.predscl, self.labels = [], [], []

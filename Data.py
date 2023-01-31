@@ -74,7 +74,7 @@ def tensor_transform():
 
 
 
-def build_loader(fl=None, lb=None, bs=51, train_sz=.8, val_sz=.7, seed=0, transform=crop_transform(224), seq=False, device='cuda', fldir="/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/", seq_len=0, n_inst=3000):
+def build_loader(fl=None, lb=None, bs=51, train_sz=.8, val_sz=.7, seed=0, transform=tensor_transform, seq=False, device='cuda', fldir="/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/", seq_len=0, n_inst=3000):
     if fl is None and lb is None:
         fl, lb = get_multimodal_sequence_paths(file_dirs=[fldir], seq_len=seq_len)
         fl, lb = shuffle_and_dist_mml(fl, lb, n_inst=n_inst, seed=seed)
@@ -209,7 +209,7 @@ class MultimodalImageDataset(Dataset):
         data_list,  
         label_list, 
         pv_params=['rpm_normed', 'flow_rate_normed'],
-        transform=transforms.ToTensor(), 
+        transform=transforms.ToTensor, 
         rpm_max=581.747314453125,
         rpm_min=86.35801696777344,
         gfl_max=86.28138732910156,
@@ -220,7 +220,7 @@ class MultimodalImageDataset(Dataset):
         self.label_list = label_list  
         self.pv_params = pv_params
         self.device = device  
-        self.transform = transform
+        self.transform = transform()
         self.num_workers=12
         self.rpm_max = rpm_max,
         self.rpm_min = rpm_min,
@@ -238,7 +238,7 @@ class MultimodalImageDataset(Dataset):
         img = ImageOps.grayscale(img)
         #img = rotate(img, 270)
         if self.transform is not None:
-            img = self.transform(img).unsqueeze(1)
+            img = self.transform(img)#.unsqueeze(1)
         fl = U.load_json(pv_fn)
         pvs = tensor([fl[p] for p in self.pv_params])
         lb = tensor(self.label_list[idx])
