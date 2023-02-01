@@ -30,10 +30,12 @@ loss = nn.CrossEntropyLoss()
 #loss = nn.HuberLoss()
 opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
 train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, 
-    bs=config["batch_size"], fldir= "C:/Users/DEMAESS2/Multimodal_ProcessData/RunTrain/", device=train_device)
+    bs=config["batch_size"], device=train_device)
 
 # Learner
-learner = Learner(config, model, loss, train_loader, val_loader, opt_func) 
+learner = Learner(config, model, loss, train_loader, val_loader, opt_func,
+    min_delta=config["min_delta_loss"], min_val_loss=config["min_val_loss"]
+) 
 
 
 # Training

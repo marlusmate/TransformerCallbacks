@@ -17,7 +17,7 @@ def norm_bias_params(m, with_bias=True):
     return res
 
 class Learner:
-    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt_func, patience=1, min_delta=.000):
+    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt_func, patience=1, min_delta=.000, min_val_loss=0.0005):
         self.model = model
         self.loss_func = loss_func
         self.opt_func = opt_func
@@ -32,7 +32,7 @@ class Learner:
         self.min_delta = min_delta
         self.counter = 0
         self.last_loss = 0
-        self.min_validation_loss = np.inf
+        self.min_validation_loss = min_val_loss
 
     def early_stop(self, validation_loss):
         if validation_loss < self.min_validation_loss:
@@ -40,8 +40,15 @@ class Learner:
             self.counter = 0
         elif abs(validation_loss - self.last_loss) < self.min_delta:
             self.counter += 1
+            print("Early stopping counter set to: ", self.counter)
             if self.counter >= self.patience:
                 return True
+        elif validation_loss > 1.1*self.last_loss:
+            self.counter += 1
+            print("Early stopping counter set to: ", self.counter)
+            if self.counter >= self.patience:
+                return True
+        self.last_loss = validation_loss
         return False
 
     def _bn_bias_state(self, with_bias): return norm_bias_params(self.model, with_bias).map(self.opt.state)
