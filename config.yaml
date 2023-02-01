@@ -20,3 +20,4 @@
 'PVs': 0
 'min_val_loss' : 0.005
 'min_delta_loss': 0.001
+'patience': 7

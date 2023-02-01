@@ -17,7 +17,7 @@ def norm_bias_params(m, with_bias=True):
     return res
 
 class Learner:
-    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt_func, patience=1, min_delta=.000, min_val_loss=0.0005):
+    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt_func, patience=1, min_delta=.000, min_val_loss=0.0005, callback_dir="Models"):
         self.model = model
         self.loss_func = loss_func
         self.opt_func = opt_func
@@ -33,11 +33,13 @@ class Learner:
         self.counter = 0
         self.last_loss = 0
         self.min_validation_loss = min_val_loss
+        self.callback_dir = callback_dir
 
     def early_stop(self, validation_loss):
         if validation_loss < self.min_validation_loss:
             self.min_validation_loss = validation_loss
             self.counter = 0
+            save(self.model, self.callback_dir+"_callback")
         elif abs(validation_loss - self.last_loss) < self.min_delta:
             self.counter += 1
             print("Early stopping counter set to: ", self.counter)
@@ -259,8 +261,8 @@ class Learner:
         mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], f"Metrics_"+self.config["model_name"]+".json"), artifact_path=self.config["model_name"])
 
 
-    def save_model(self, dest):
-        save(self.model, dest+"/Model")
+    def save_model(self):
+        save(self.model, self.callback_dir+"/Model")
         print("Model abgespeichert")
 
     def test_pv(self, dls_test):

@@ -17,7 +17,7 @@ import os
 config = load_yaml('config.yaml')
 logger = logging.getLogger('vswin_logger')
 train_device = device('cuda:0' if cuda.is_available() else 'cpu')
-
+callback_dir = os.path.join("Models", config["model_name"])
 # Init Model
 #model = MSwinTransformer3D(patch_size=(1,4,4), window_size=(2,7,7), logger=logger).to(train_device)
 #model = VisionTransformer3D(num_classes=2,img_size=(4,224,224), patch_size=(2,16,16), weight_init=config["pretrained"],
@@ -34,7 +34,7 @@ train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n
 
 # Learner
 learner = Learner(config, model, loss, train_loader, val_loader, opt_func,
-    min_delta=config["min_delta_loss"], min_val_loss=config["min_val_loss"]
+    min_delta=config["min_delta_loss"], min_val_loss=config["min_val_loss"], callback_dir=callback_dir
 ) 
 
 
