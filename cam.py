@@ -27,5 +27,7 @@ targets = [ClassifierOutputTarget(1)]
 grayscale_cam = cam(input_tensor=input_tensor, targets=None)
 grayscale_cam = grayscale_cam[0, :]
 visualization = show_cam_on_image(input_tensor.cpu().numpy(), grayscale_cam, use_rgb=False)
+from PIL import Image
+temp = Image.fromarray(visualization.squeeze(0).squeeze(0))
 print("Fertsch")
 
