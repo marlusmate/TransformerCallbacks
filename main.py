@@ -34,7 +34,7 @@ train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n
 
 # Learner
 learner = Learner(config, model, loss, train_loader, val_loader, opt_func,
-    min_delta=config["min_delta_loss"], min_val_loss=config["min_val_loss"], callback_dir=callback_dir
+    min_delta=config["min_delta_loss"], min_val_loss=config["min_val_loss"], callback_dir=callback_dir, patience=config["patience"]
 ) 
 
 
@@ -50,4 +50,4 @@ learner.fit_one_cycle(epochs=config["epochs_total"], n_iter=train_loader.__len__
 learner.test(test_loader)
 #learner.test_pv(test_loader)
 mlflow.end_run()
-learner.save_model(os.path.join("Models", config["model_name"]))
+learner.save_model()

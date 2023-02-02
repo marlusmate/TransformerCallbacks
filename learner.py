@@ -1,4 +1,4 @@
-from torch import no_grad, save, tensor
+from torch import no_grad, save, tensor, load
 from tqdm import tqdm
 from learner_utils import combine_scheds, combined_cos, dump_json
 from callbacks import ParamScheduler
@@ -32,25 +32,35 @@ class Learner:
         self.min_delta = min_delta
         self.counter = 0
         self.last_loss = 0
+        self.last_acc = 0
         self.min_validation_loss = min_val_loss
         self.callback_dir = callback_dir
+        self.callback_set = False
 
     def early_stop(self, validation_loss):
         if validation_loss < self.min_validation_loss:
             self.min_validation_loss = validation_loss
             self.counter = 0
-            save(self.model, self.callback_dir+"_callback")
+            print("Early stopping counter set to: ", self.counter)
+            if self.epoch_val_accuracy > self.last_acc:
+                save(self.model, self.callback_dir+"_callback")
+                self.last_acc = self.epoch_val_accuracy
+            self.callback_set = True
+            self.last_loss = validation_loss
+            print("Callback Model gespeichert, loss: ", validation_loss)
         elif abs(validation_loss - self.last_loss) < self.min_delta:
             self.counter += 1
+            self.last_loss = validation_loss
             print("Early stopping counter set to: ", self.counter)
             if self.counter >= self.patience:
                 return True
         elif validation_loss > 1.1*self.last_loss:
             self.counter += 1
+            self.last_loss = validation_loss
             print("Early stopping counter set to: ", self.counter)
             if self.counter >= self.patience:
                 return True
-        self.last_loss = validation_loss
+        
         return False
 
     def _bn_bias_state(self, with_bias): return norm_bias_params(self.model, with_bias).map(self.opt.state)
@@ -148,7 +158,6 @@ class Learner:
         mlflow.log_metric("loss_val_epoch", self.epoch_val_loss, step=self.cbs.epoch)
         mlflow.log_metric("acc_val_epoch", self.epoch_val_accuracy, step=self.cbs.epoch)
         self.cbs.epoch += 1
-        self.early_stop(self.epoch_val_loss)
 
     def _do_epoch_validate(self, ds_idx=1, dl=None):
         print("Val Epoch:")
@@ -162,6 +171,9 @@ class Learner:
         for epoch in range(self.epochs):
             self.epoch = epoch
             self._do_epoch()
+            if self.early_stop(self.epoch_val_loss):
+                break
+
         self.cbs.after_fit()
 
     def fit(self, epochs, cbs):
@@ -201,6 +213,9 @@ class Learner:
     def test(self, dls_test):
         self.preds, self.predscl, self.labels = [], [], []
         self.testing = True
+        if self.callback_set:
+            self.model = load(self.callback_dir+"_callback")
+            print("Model Callback loaded")
         self._do_epoch_validate(dl=dls_test)
         self.seed = self.config["tags"]["Seeds"][0]
         

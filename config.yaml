@@ -1,8 +1,8 @@
 'model_name' : 'swin-tiny-patch4-window7-224_scratch'
 'epochs_total': 25
 'epochs_froozen': 0
-'n_inst': 6000
-'train_sz': 0.7
+'n_inst': 100
+'train_sz': 0.5
 'seq_len': 0
 'batch_size': 21
 'base_lr' : 0.0001
@@ -18,6 +18,6 @@
 'seed' : 0
 'pretrained' : 'skip'
 'PVs': 0
-'min_val_loss' : 0.005
-'min_delta_loss': 0.001
-'patience': 7
+'min_val_loss' : 0.9
+'min_delta_loss': 0.009
+'patience': 3
