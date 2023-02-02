@@ -560,6 +560,7 @@ class SwinTransformer3D(nn.Module):
                  global_pool = 'avg',
                  temporal_pool = 'cls',
                  temporal_heads = [3,3],
+                 final_actv=None,
                  logger=None):
         super().__init__()
 
@@ -572,6 +573,7 @@ class SwinTransformer3D(nn.Module):
         self.window_size = window_size
         self.patch_size = patch_size
         self.global_avg = global_pool == 'avg'
+        self.final_actv = final_actv
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed3D(
@@ -628,11 +630,17 @@ class SwinTransformer3D(nn.Module):
 
         # add a classification head (me)
         self.head = nn.Sequential(
-            nn.Linear(self.num_features, num_classes),
-            nn.Softmax(dim=-1)
+            nn.Linear(self.num_features, num_classes)
         )
 
         self.inflate_weights(logger=logger) if load_weights != 'skip' else self.init_weights()
+
+    def reset_classifier(self, num_classes: int, global_pool=None):
+        self.num_classes = num_classes
+        if self.global_pool is not None:
+            assert global_pool in ('', 'avg', 'token')
+            self.global_pool = global_pool
+        self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
@@ -776,7 +784,8 @@ class SwinTransformer3D(nn.Module):
         x = self.avgpool(x) if self.temp_avg_pool else x[:,0]
 
         x = self.head(x)
-
+        if self.final_actv is not None:
+            x = self.final_actv(x) 
         return x
 
     def train(self, mode=True):

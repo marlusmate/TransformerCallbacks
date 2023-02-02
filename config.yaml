@@ -1,18 +1,18 @@
-'model_name' : 'vswin-tiny-patch4-window4-224_pv'
-'epochs_total': 25
-'epochs_froozen': 0
+'model_name' : 'vit-tiny-patch16-224_scratch'
+'epochs_total': 10
+'epochs_froozen': 1
 'n_inst': 2000
 'train_sz': 0.75
-'seq_len': 4
-'batch_size': 5
+'seq_len': 0
+'batch_size': 21
 'base_lr' : 0.00008
 'drop_rate' : 0.3
 'attn_drop_rate' : 0.2
 'drop_path_rate' : 0.1
-'patch_size' : [2,4,4]
+'patch_size' : [2,16,16]
 'window_size' : [2,4,4]
 'tags' : {
-    'Model': 'vswin-tiny-patch4-window4-224_pv',
+    'Model': 'vit-tiny-patch16-224_scratch',
     'Type': 'SelfSupervisedTraining',
     'Seeds': [0]
 }
@@ -23,3 +23,4 @@
 'min_val_loss' : 0.3
 'min_delta_loss': 0.009
 'patience': 5
+'pretrained_dir':

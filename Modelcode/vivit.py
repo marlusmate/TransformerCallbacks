@@ -343,6 +343,7 @@ class VisionTransformer3D(nn.Module):
             depth_temp=4,
             num_heads_temp = 3,
             temporal_pool='cls',
+            final_actv=None,
             no_weight_decay = 'norm'
     ):
         """
@@ -386,6 +387,7 @@ class VisionTransformer3D(nn.Module):
         self.temporal_cls = nn.Parameter(torch.zeros(1,1,self.embed_dim)) if not self.temporal_pool else None
         self.pretrained = pretrained 
         self.frozen_stages = frozen_stages
+        self.final_actv = final_actv
 
         self.patch_embed = embed_layer(
             patch_size=patch_size,
@@ -514,8 +516,8 @@ class VisionTransformer3D(nn.Module):
     def reset_classifier(self, num_classes: int, global_pool=None):
         self.num_classes = num_classes
         if global_pool is not None:
-            assert global_pool in ('', 'avg', 'token')
-            self.global_pool = global_pool
+            assert self.global_pool in ('', 'avg', 'token')
+            global_pool = global_pool
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
     def _pos_embed(self, x):
@@ -561,5 +563,7 @@ class VisionTransformer3D(nn.Module):
         x = self.forward_features_spatial(x)   
         x = self.forward_features_temporal(x)
         x = self.forward_head(x, pre_logits=self.pre_logits)
+        if self.final_actv is not None:
+            x = self.final_actv(x) 
         return x
 

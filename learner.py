@@ -17,7 +17,7 @@ def norm_bias_params(m, with_bias=True):
     return res
 
 class Learner:
-    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt_func, patience=1, min_delta=.000, min_val_loss=0.0005, callback_dir="Models"):
+    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt_func, patience=1, min_delta=.000, min_val_loss=0.0005, callback_dir="Models/"):
         self.model = model
         self.loss_func = loss_func
         self.opt_func = opt_func
@@ -37,6 +37,7 @@ class Learner:
         self.callback_dir = callback_dir
         self.callback_set = False
         self.epoch_count = 0
+        self.cbs=None
 
     def early_stop(self, validation_loss):
         if validation_loss < self.min_validation_loss:
@@ -44,8 +45,10 @@ class Learner:
             self.counter = 0
             print("Early stopping counter set to: ", self.counter)
             if self.epoch_val_accuracy > self.last_acc:
-                save(self.model, self.callback_dir+"_callback")
+                save(self.model, self.callback_dir+"/model_callback_acc")
                 self.last_acc = self.epoch_val_accuracy
+            else:
+                save(self.model, self.callback_dir+"/model_callback_loss")
             self.callback_set = True
             self.last_loss = validation_loss
             print("Callback Model gespeichert, loss: ", validation_loss)
@@ -96,9 +99,9 @@ class Learner:
             self.epoch_val_accuracy += acc / self.n_iter
             self.epoch_val_loss += self.loss / self.n_iter
         if self.testing:
-            self.preds.append(self.pred.cpu()[0].numpy())
+            self.preds.append(self.pred.cpu().numpy())
             self.predscl.append(self.pred.argmax(dim=1).cpu().numpy())
-            self.labels.append(self.yb.cpu()[0].numpy())
+            self.labels.append(self.yb.cpu().numpy())
 
 
     def all_batches(self):
@@ -122,6 +125,9 @@ class Learner:
             for i in range(self.params):
                 self.loss_grad += self.loss_func(self.pred[:,i], self.yb[:,i]) * self.loss_we[i]
             self.loss = self.loss_grad.clone()
+        elif self.testing:
+            self.loss_grad = self.loss_func(self.pred, self.yb)
+            self.loss = self.loss_grad.clone()
                 
 
     def _do_one_batch(self):
@@ -134,10 +140,10 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[1].mean(dim=1)
-        self.cbs.before_batch()
+        self.yb= data[2] #.mean(dim=1)
+        if self.cbs is not None: self.cbs.before_batch() 
         self._do_one_batch()
-        self.cbs.after_batch()
+        if self.cbs is not None: self.cbs.after_batch()
 
     def _do_epoch_train(self):
         print("Train Epoch:")
@@ -213,6 +219,7 @@ class Learner:
         self.fit_one_cycle(epochs, n_iter, lr_max=base_lr)
 
     def test(self, dls_test):
+        self.epoch_val_accuracy, self.epoch_val_loss = 0.,0.
         self.preds, self.predscl, self.labels = [], [], []
         self.testing = True
         if self.callback_set:

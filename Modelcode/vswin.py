@@ -543,8 +543,7 @@ class SwinTransformer3D(nn.Module):
 
         # add a classification head (me)
         self.head = nn.Sequential(
-            nn.Linear(self.num_features, num_classes),
-            nn.Softmax(dim=-1)
+            nn.Linear(self.num_features, num_classes)
         )
 
         if load_weights != 'skip':
