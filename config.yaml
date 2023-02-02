@@ -1,5 +1,5 @@
 'model_name' : 'vswin-tiny-patch4-window4-224_scratch'
-'epochs_total': 2
+'epochs_total': 25
 'epochs_froozen': 0
 'n_inst': 2000
 'train_sz': 0.75
