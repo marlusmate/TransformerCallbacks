@@ -22,8 +22,8 @@ callback_dir = os.path.join("Models", config["model_name"])
 #model = MSwinTransformer3D(patch_size=(1,4,4), window_size=(2,7,7), logger=logger).to(train_device)
 #model = VisionTransformer3D(num_classes=2,img_size=(4,224,224), patch_size=(2,16,16), weight_init=config["pretrained"],
     #drop_rate=config["drop_rate"], attn_drop_rate=config["attn_drop_rate"], drop_path_rate=config["drop_path_rate"]).to(train_device)
-#model = VisionTransformer(num_classes=3, drop_path_rate=0.2, drop_rate=.2, attn_drop_rate=0.1).to(train_device)
-model = SwinTransformer(num_classes=3, load_weights='skip', drop_path_rate=0.1, drop_rate=0.3, attn_drop_rate=0.2).to(train_device)
+#model = VisionTransformer(num_classes=3, weight_init=config["pretrained"], drop_path_rate=0.1, drop_rate=.3, attn_drop_rate=0.1).to(train_device)
+model = SwinTransformer(num_classes=3, load_weights=config["pretrained"], drop_path_rate=0.1, drop_rate=0.3, attn_drop_rate=0.2).to(train_device)
 
 # Loss, Optimizer, Dataloader
 loss = nn.CrossEntropyLoss()
@@ -45,8 +45,8 @@ mlflow.set_tags(config['tags'])
 mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"]), artifact_path=config["model_name"])
 
 #learner.pv_learn(config["epochs_total"], params=config["PVs"], n_iter=train_loader.__len__(), loss_we=[0.5, 0.5])
-learner.fit_one_cycle(epochs=config["epochs_total"], n_iter=train_loader.__len__(), lr_max=config["base_lr"])
-#learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=config["base_lr"])
+#learner.fit_one_cycle(epochs=config["epochs_total"], n_iter=train_loader.__len__(), lr_max=config["base_lr"])
+learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=config["base_lr"])
 learner.test(test_loader)
 #learner.test_pv(test_loader)
 mlflow.end_run()

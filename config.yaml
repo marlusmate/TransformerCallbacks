@@ -1,8 +1,8 @@
-'model_name' : 'swin-tiny-patch4-window7-224_scratch'
+'model_name' : 'swin-tiny-patch4-window7-224'
 'epochs_total': 25
-'epochs_froozen': 0
-'n_inst': 100
-'train_sz': 0.5
+'epochs_froozen': 1
+'n_inst': 6000
+'train_sz': 0.75
 'seq_len': 0
 'batch_size': 21
 'base_lr' : 0.0001
@@ -10,14 +10,14 @@
 'attn_drop_rate' : 0.2
 'drop_path_rate' : 0.1
 'tags' : {
-    'Model': 'swin-tiny-patch4-window7-224_scratch',
+    'Model': 'swin-tiny-patch4-window7-224',
     'Type': 'Training',
     'Seeds': [0]
 }
 'eval_dir' : "Evaluation"
 'seed' : 0
-'pretrained' : 'skip'
+'pretrained' : ''
 'PVs': 0
-'min_val_loss' : 0.9
+'min_val_loss' : 0.3
 'min_delta_loss': 0.009
-'patience': 3
+'patience': 5

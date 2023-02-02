@@ -396,7 +396,7 @@ class VisionTransformer(nn.Module):
         if self.frozen_stages >= 1:
             self.pos_drop.eval()
             for i in range(0, self.frozen_stages):
-                m = self.layers[i]
+                m = self.blocks[i]
                 m.eval()
                 for param in m.parameters():
                     param.requires_grad = False        
