@@ -33,6 +33,7 @@ def deprocess_image(img):
 def show_cam_on_image(img: np.ndarray,
                       mask: np.ndarray,
                       use_rgb: bool = False,
+                      use_gray: bool = True,
                       colormap: int = cv2.COLORMAP_JET,
                       image_weight: float = 0.5) -> np.ndarray:
     """ This function overlays the cam mask on the image as an heatmap.
@@ -48,6 +49,8 @@ def show_cam_on_image(img: np.ndarray,
     heatmap = cv2.applyColorMap(np.uint8(255 * mask), colormap)
     if use_rgb:
         heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+    if use_gray:
+        heatmap = heatmap[:,:,0]
     heatmap = np.float32(heatmap) / 255
 
     if np.max(img) > 1:
