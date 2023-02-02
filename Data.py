@@ -272,7 +272,7 @@ class MultimodalDataset(Dataset):
         self.label_list = label_list  
         self.pv_params = pv_params
         self.device = device  
-        self.transform = transform
+        self.transform = transform()
 
     def __len__(self):
         self.filelength = len(self.file_list)

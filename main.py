@@ -19,16 +19,16 @@ logger = logging.getLogger('vswin_logger')
 train_device = device('cuda:0' if cuda.is_available() else 'cpu')
 callback_dir = os.path.join("Models", config["model_name"])
 # Init Model
-#model = MSwinTransformer3D(patch_size=(1,4,4), window_size=(2,7,7), logger=logger).to(train_device)
+model = MSwinTransformer3D(load_weights=config["pretrained"], patch_size=config["patch_size"], window_size=config["window_size"], logger=logger).to(train_device)
 #model = VisionTransformer3D(num_classes=2,img_size=(4,224,224), patch_size=(2,16,16), weight_init=config["pretrained"],
     #drop_rate=config["drop_rate"], attn_drop_rate=config["attn_drop_rate"], drop_path_rate=config["drop_path_rate"]).to(train_device)
 #model = VisionTransformer(num_classes=3, weight_init=config["pretrained"], drop_path_rate=0.1, drop_rate=.3, attn_drop_rate=0.1).to(train_device)
-model = SwinTransformer(num_classes=3, load_weights=config["pretrained"], drop_path_rate=0.1, drop_rate=0.3, attn_drop_rate=0.2).to(train_device)
+#model = SwinTransformer(num_classes=3, load_weights=config["pretrained"], drop_path_rate=0.1, drop_rate=0.3, attn_drop_rate=0.2).to(train_device)
 
 # Loss, Optimizer, Dataloader
 loss = nn.CrossEntropyLoss()
 #loss = nn.HuberLoss()
-opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
+opt_func = OptimWrapper(opt=optim.AdamW(model.parameters()))
 train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, 
     bs=config["batch_size"], device=train_device)
 

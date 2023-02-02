@@ -36,6 +36,7 @@ class Learner:
         self.min_validation_loss = min_val_loss
         self.callback_dir = callback_dir
         self.callback_set = False
+        self.epoch_count = 0
 
     def early_stop(self, validation_loss):
         if validation_loss < self.min_validation_loss:
@@ -153,11 +154,12 @@ class Learner:
         print(
                     f"Epoch : {self.epoch+1} - loss : {self.epoch_loss:.4f} - acc: {self.epoch_accuracy:.4f} - val_loss : {self.epoch_val_loss:.4f} - val_acc: {self.epoch_val_accuracy:.4f}\n"
                     )
-        mlflow.log_metric("loss_train_epoch", self.epoch_loss, step=self.cbs.epoch)
-        mlflow.log_metric("acc_train_epoch", self.epoch_accuracy, step=self.cbs.epoch)
-        mlflow.log_metric("loss_val_epoch", self.epoch_val_loss, step=self.cbs.epoch)
-        mlflow.log_metric("acc_val_epoch", self.epoch_val_accuracy, step=self.cbs.epoch)
+        mlflow.log_metric("loss_train_epoch", self.epoch_loss, step=self.epoch_count)
+        mlflow.log_metric("acc_train_epoch", self.epoch_accuracy, step=self.epoch_count)
+        mlflow.log_metric("loss_val_epoch", self.epoch_val_loss, step=self.epoch_count)
+        mlflow.log_metric("acc_val_epoch", self.epoch_val_accuracy, step=self.epoch_count)
         self.cbs.epoch += 1
+        self.epoch_count += 1
 
     def _do_epoch_validate(self, ds_idx=1, dl=None):
         print("Val Epoch:")
