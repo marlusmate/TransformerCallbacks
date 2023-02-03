@@ -12,9 +12,43 @@ import glob
 import os
 import json
 import random
+from pandas import DataFrame
+import numpy as np
+from math import ceil
 
 fn_dir = "C:/Users/MarkOne/data/regimeclassification"#/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed_test/"
 fn_json = glob.glob(os.path.join(fn_dir,'*.json'))
+
+def create_dataframe(fndir="C:/Users/DEMAESS2/Multimodal_ProcessData/RunTrain"):
+    
+    img_paths = glob.glob(os.path.join(fndir[0],'*.png'))
+    par_paths = glob.glob(os.path.join(fndir[0],'*.json'))
+    img_paths.sort()
+    par_paths.sort()
+    run_ids, labels = [], []
+    for img_path, par_path in zip(img_paths, par_paths):
+        run_ids.append(img_path.split('.')[1].split('_')[0][3:])
+        labels.append(int(img_path.split("\\")[-1].split('_')[-1][0]))
+    df = DataFrame({'ImgPath': img_paths, 'JsonPath': par_paths, 'SeqID': run_ids, 'Label': labels})
+    return df
+
+def create_seqs_from_df(seq_len, df=None):
+    data_paths, labels = [], []
+    # opt load df
+    for seq_id in df.groupby(["SeqID"]).groups:
+        temp_df = df[df["SeqID"]==seq_id]
+        temp = np.array_split(np.array(temp_df), ceil(len(temp_df)/seq_len))
+        if len(temp_df) % seq_len != 0:
+            for p in temp[:-1]:
+                arr = np.array(p)
+                data_paths.append([(path[0], path[1]) for path in arr])
+                labels.append(arr[0][-1])
+        else:            
+            for p in temp:
+                arr = np.array(p)
+                data_paths.append([(path[0], path[1]) for path in arr])
+                labels.append(arr[0][-1])
+    return data_paths, labels
 
 def load_yaml(fn):
     with open(fn, 'r') as f:
@@ -128,46 +162,10 @@ def get_multimodal_sequence_paths(file_dirs: list, seq_len=6):
     if seq_len == 0:
         data_paths, labels = get_multimodal_data_paths(file_dirs)
         return data_paths, labels
-    for dir in file_dirs:
-        img_paths = glob.glob(os.path.join(dir,'*.png'))
-        par_paths = glob.glob(os.path.join(dir,'*.json'))
-        img_paths.sort()
-        par_paths.sort()
-        for img_path, par_path in zip(img_paths, par_paths):
-            cnt = int(img_path.split('_')[-2])            
-            if cnt < seq_len or seq_len < cnt <= seq_len*2:
-                lb = int(img_path.split("\\")[-1].split('_')[-1][0])
-                if lb == 0:
-                    if cnt == 0 or cnt == (seq_len+1):
-                        seq_list_0 = [(img_path, par_path)]
-                        continue
-                    else:
-                        seq_list_0.append((img_path,par_path))
-                    if len(seq_list_0) == seq_len:
-                        data_paths.append(seq_list_0)
-                        label_list.append(lb)
-                    continue
-                if lb == 1:
-                    if cnt == 0 or cnt == (seq_len+1):
-                        seq_list_1 = [(img_path, par_path)]
-                        continue
-                    else:
-                        seq_list_1.append((img_path, par_path))
-                    if len(seq_list_1) == seq_len:
-                        data_paths.append(seq_list_1)
-                        label_list.append(lb)
-                    continue
-                if lb == 2:
-                    if cnt == 0 or cnt == (seq_len+1):
-                        seq_list_2 = [(img_path, par_path)]
-                        continue
-                    else:
-                        seq_list_2.append((img_path, par_path))
-                    if len(seq_list_2) == seq_len:
-                        data_paths.append(seq_list_2)
-                        label_list.append(lb)
-                    continue
-    return data_paths, label_list
+    else:
+        df = create_dataframe(file_dirs)
+        data_paths, labels = create_seqs_from_df(df=df, seq_len=seq_len)
+        return data_paths, labels
 
 def get_multimodal_data_paths(file_dirs: list):
     data_paths = []
@@ -182,7 +180,9 @@ def get_multimodal_data_paths(file_dirs: list):
             data_paths.append((img_path, par_path))            
     return data_paths, label_list
 
-def shuffle_and_dist_mml(data_paths, labels, n_inst=2000, seed=24):
+def shuffle_and_dist_mml(data_paths, labels, n_inst=None, seed=24):
+    if n_inst is None:
+        n_inst = min([labels.count(lb) for lb in set(labels)])
     shuffled_paths, s_labels = [[], []]
     # joint shuffleing
     random.seed(seed)
@@ -282,9 +282,7 @@ class MultimodalDataset(Dataset):
         fns = self.file_list[idx]
         img_seq = None
         pv_seq = None
-        for fn in fns:
-            img_fn = fn[0] 
-            pv_fn = fn[1]
+        for img_fn, pv_fn in fns:
             img = Image.open(img_fn)
             img = ImageOps.grayscale(img)
             #img = rotate(img, 270)

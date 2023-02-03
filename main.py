@@ -7,7 +7,6 @@ from Data import build_loader, load_yaml
 #import pytorch_lightning as pl
 import torch.nn as nn
 from torch import device, cuda, optim, load
-import torch  
 from callbacks import *
 from learner import Learner
 from fastai.optimizer import OptimWrapper, Optimizer
@@ -52,7 +51,7 @@ if not config["transfer_learning"]:
         ).to(train_device)
     elif 'vit' in config["model_name"]:
         model = VisionTransformer(
-            num_classes=config["model_name"],
+            num_classes=config["num_classes"],
             weight_init=config["pretrained"], 
             drop_path_rate=config["drop_path_rate"], 
             drop_rate=config["drop_rate"], 
