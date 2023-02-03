@@ -24,3 +24,9 @@
 'min_delta_loss': 0.009
 'patience': 5
 'pretrained_dir':
+'num_classes' : 3
+'final_actv' : None
+'loss' : cross # {cross, huber}
+'transfer_learning' : False
+'pv_learning' : False
+'fine_tune'  False

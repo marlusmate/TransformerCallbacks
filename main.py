@@ -20,22 +20,58 @@ logger = logging.getLogger('vswin_logger')
 train_device = device('cuda:0' if cuda.is_available() else 'cpu')
 callback_dir = os.path.join("Models", config["model_name"])
 # Init Model
-#model = MSwinTransformer3D(num_classes=2, load_weights=config["pretrained"], patch_size=config["patch_size"], window_size=config["window_size"], logger=logger, 
-    #drop_path_rate=config["drop_path_rate"], drop_rate=config["drop_rate"], attn_drop_rate=config["attn_drop_rate"]).to(train_device)
-#model = VisionTransformer3D(num_classes=3,img_size=(config["seq_len"],224,224), patch_size=config["patch_size"], weight_init=config["pretrained"],
-    #drop_rate=config["drop_rate"], attn_drop_rate=config["attn_drop_rate"], drop_path_rate=config["drop_path_rate"]).to(train_device)
-model = VisionTransformer(num_classes=3, weight_init=config["pretrained"], drop_path_rate=0.1, drop_rate=.3, attn_drop_rate=0.1).to(train_device)
-#model = SwinTransformer(num_classes=3, load_weights=config["pretrained"], drop_path_rate=0.1, drop_rate=0.3, attn_drop_rate=0.2).to(train_device)
-
-# Transfer Learning model
-pretrained_dir = "Models/"+config["model_name"]+"/model_callback_acc"
-#model = load(pretrained_dir)
-#model.reset_classifier(num_classes=3)
-#model.to(train_device)
+if not config["transfer_learning"]:
+    if 'vswin' in config["model_name"]:
+        model = MSwinTransformer3D(
+            num_classes=config["num_classes"], 
+            load_weights=config["pretrained"], 
+            patch_size=config["patch_size"], 
+            window_size=config["window_size"], 
+            logger=logger, 
+            drop_path_rate=config["drop_path_rate"], 
+            drop_rate=config["drop_rate"], 
+            attn_drop_rate=config["attn_drop_rate"]        
+        ).to(train_device)
+    elif 'swin' in config["model_name"]:
+        model = SwinTransformer(
+            num_classes=config["num_classes"], 
+            oad_weights=config["pretrained"], 
+            drop_path_rate=config["drop_path_rate"], 
+            drop_rate=config["drop_rate"], 
+            attn_drop_rate=config["attn_drop_rate"]
+        ).to(train_device)
+    if 'vivit' in config["model_name"]:
+        model = VisionTransformer3D(
+            num_classes=config["num_classes"],
+            img_size=(config["seq_len"],224,224), 
+            patch_size=config["patch_size"], 
+            weight_init=config["pretrained"],
+            drop_rate=config["drop_rate"], 
+            attn_drop_rate=config["attn_drop_rate"], 
+            drop_path_rate=config["drop_path_rate"]
+        ).to(train_device)
+    elif 'vit' in config["model_name"]:
+        model = VisionTransformer(
+            num_classes=config["model_name"],
+            weight_init=config["pretrained"], 
+            drop_path_rate=config["drop_path_rate"], 
+            drop_rate=config["drop_rate"], 
+            attn_drop_rate=config["attn_drop_rate"]
+        ).to(train_device)
+else:
+    # Transfer Learning model
+    pretrained_dir = "Models/"+config["model_name"]+"/model_callback_acc"
+    model = load(pretrained_dir)
+    model.reset_classifier(num_classes=3)
+    model.to(train_device)
 
 # Loss, Optimizer, Dataloader
-loss = nn.CrossEntropyLoss()
-#loss = nn.HuberLoss()
+if 'cross' in config["loss"]:
+    loss = nn.CrossEntropyLoss()
+elif 'huber' in config["loss"]:
+    loss = nn.HuberLoss()
+else:
+    print("no loss function bruh")
 opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
 train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, 
     bs=config["batch_size"], device=train_device, train_sz=config["train_sz"], fldir="C:/Users/DEMAESS2/Multimodal_ProcessData/RunTrain")
@@ -49,13 +85,19 @@ learner = Learner(config, model, loss, train_loader, val_loader, opt_func,
 # Training
 mlflow.end_run()
 mlflow.set_experiment("Markus_Transformer")
-mlflow.set_tags(config['tags'])
-mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"]), artifact_path=config["model_name"])
+with mlflow.start_run(run_name=config["model_name"]):
+    mlflow.set_tags(config['tags'])
+    mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"]), artifact_path=config["model_name"])
 
-#learner.pv_learn(config["epochs_total"], params=config["PVs"], n_iter=train_loader.__len__(), loss_we=[0.5, 0.5])
-learner.fit_one_cycle(epochs=config["epochs_total"], n_iter=train_loader.__len__(), lr_max=config["base_lr"])
-#learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=config["base_lr"])
-learner.test(test_loader)
-#learner.test_pv(test_loader)
+    if config["pv_learning"]:
+        learner.pv_learn(config["epochs_total"], params=config["PVs"], n_iter=train_loader.__len__(), loss_we=[0.5, 0.5])
+        learner.test_pv(test_loader)
+    elif config["fine_tune"]:
+        learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=config["base_lr"])
+        learner.test(test_loader)
+    else:
+        learner.fit_one_cycle(epochs=config["epochs_total"], n_iter=train_loader.__len__(), lr_max=config["base_lr"])
+        learner.test(test_loader)
+    
 mlflow.end_run()
 learner.save_model()
