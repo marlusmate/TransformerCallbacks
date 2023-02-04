@@ -3,7 +3,7 @@ from Modelcode.vit import VisionTransformer
 from Modelcode.vswin import SwinTransformer3D
 from Modelcode.vswin_multimodal import SwinTransformer3D as MSwinTransformer3D
 from Modelcode.vivit import VisionTransformer3D
-from Data import build_loader, load_yaml
+from Data import build_loader, load_yaml, dump_json
 #import pytorch_lightning as pl
 import torch.nn as nn
 from torch import device, cuda, optim, load
@@ -55,11 +55,12 @@ if not config["transfer_learning"]:
             weight_init=config["pretrained"], 
             drop_path_rate=config["drop_path_rate"], 
             drop_rate=config["drop_rate"], 
-            attn_drop_rate=config["attn_drop_rate"]
+            attn_drop_rate=config["attn_drop_rate"],
+            final_actv=config["final_actv"]
         ).to(train_device)
 else:
     # Transfer Learning model
-    pretrained_dir = "Models/"+config["model_name"]+"/model_callback_acc"
+    pretrained_dir = config["pretraineddir"]
     model = load(pretrained_dir)
     model.reset_classifier(num_classes=3)
     model.to(train_device)
@@ -71,12 +72,21 @@ elif 'huber' in config["loss"]:
     loss = nn.HuberLoss()
 else:
     print("no loss function bruh")
-opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
-train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, 
-    bs=config["batch_size"], device=train_device, train_sz=config["train_sz"], fldir=config["fldir"])
+
+train_loader, _, _, inst_dist1 = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, 
+    bs=config["batch_size"], device=train_device, train_sz=0.99, fldir=config["fldir"])
+test_loader, val_loader, _, inst_dist2 = build_loader(bs=1,train_sz=config["val_sz"], val_sz=0.99, fldir=config["test_dir"], n_inst=config["train_inst"], seq_len=config["seq_len"], seq=config["seq_len"]>0)
+inst_dist = {'Training': inst_dist1['Training'], 'Validation': inst_dist2['Training'], 'Testing': inst_dist2['Validation']}
+dump_json(inst_dist, dest=os.path.join(config["eval_dir"], config["model_name"])+'/InstanceDistribution.json')
+print("IntsanceDistribution saved")
+
+if config["opt"] == 'fastai':
+    opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
+else:
+    opt_func = optim.AdamW(model.parameters(), lr=config["base_lr"])
 
 # Learner
-learner = Learner(config, model, loss, train_loader, val_loader, opt_func,
+learner = Learner(config, model, loss, train_loader, val_loader, opt_func, opt=None,
     min_delta=config["min_delta_loss"], min_val_loss=config["min_val_loss"], callback_dir=callback_dir, patience=config["patience"]
 ) 
 
@@ -87,7 +97,7 @@ mlflow.set_experiment("Markus_Transformer")
 with mlflow.start_run(run_name=config["model_name"]):
     mlflow.set_tags(config['tags'])
     mlflow.log_artifact("config.yaml", artifact_path=config["model_name"])
-
+    mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"])+'/InstanceDistribution.json', artifact_path=config["model_name"])
     if config["pv_learning"]:
         learner.pv_learn(config["epochs_total"], params=config["PVs"], n_iter=train_loader.__len__(), loss_we=[0.5, 0.5])
         learner.test_pv(test_loader)

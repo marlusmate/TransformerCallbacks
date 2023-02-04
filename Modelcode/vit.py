@@ -299,7 +299,8 @@ class VisionTransformer(nn.Module):
             pre_logits=False,
             pretrained="Dictionaries/vit-tiny-patch16-224.bin",
             frozen_stages=12,
-            no_weight_decay = 'norm'
+            no_weight_decay = 'norm',
+            final_actv=None
     ):
         """
         Args:
@@ -377,7 +378,13 @@ class VisionTransformer(nn.Module):
         # Classifier Head
         self.fc_norm = norm_layer(embed_dim) if use_fc_norm else nn.Identity()
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
-
+        if final_actv =='soft':
+            self.final_actv = nn.Softmax(dim=-1) 
+        elif final_actv =='relu':
+            self.final_actv = nn.ReLU()
+        else:
+            self.final_actv = None
+        
         if weight_init != 'skip':
             self.init_weights(weight_init)
 
@@ -482,5 +489,6 @@ class VisionTransformer(nn.Module):
     def forward(self, x):
         x = self.forward_features(x)
         x = self.forward_head(x, pre_logits=self.pre_logits)
+        if self.final_actv is not None: x = self.final_actv(x)
         return x
 
