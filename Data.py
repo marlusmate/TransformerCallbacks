@@ -20,9 +20,11 @@ fn_dir = "C:/Users/MarkOne/data/regimeclassification"#/mnt/data_sdd/flow_regime_
 fn_json = glob.glob(os.path.join(fn_dir,'*.json'))
 
 def create_dataframe(fndir="C:/Users/DEMAESS2/Multimodal_ProcessData/RunTrain"):
-    
-    img_paths = glob.glob(os.path.join(fndir[0],'*.png'))
-    par_paths = glob.glob(os.path.join(fndir[0],'*.json'))
+    img_paths, par_paths = [], []
+    for fdir in fndir:
+        img_paths.extend(glob.glob(os.path.join(fdir,'*.png')))
+        par_paths.extend(glob.glob(os.path.join(fdir,'*.json')))
+        
     img_paths.sort()
     par_paths.sort()
     run_ids, labels = [], []
