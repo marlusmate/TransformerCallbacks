@@ -1,9 +1,9 @@
-'model_name' : 'vit-tiny-patch16-224_scratch'
-'epochs_total': 10
+'model_name' : 'vivit-tiny-patch16-224_scratch'
+'epochs_total': 3
 'epochs_froozen': 1
-'n_inst': 2000
+'n_inst': 
 'train_sz': 0.75
-'seq_len': 0
+'seq_len': 4
 'batch_size': 21
 'base_lr' : 0.00008
 'drop_rate' : 0.3
@@ -12,7 +12,7 @@
 'patch_size' : [2,16,16]
 'window_size' : [2,4,4]
 'tags' : {
-    'Model': 'vit-tiny-patch16-224_scratch',
+    'Model': 'vivit-tiny-patch16-224_scratch',
     'Type': 'SelfSupervisedTraining',
     'Seeds': [0]
 }
@@ -29,4 +29,4 @@
 'loss' : cross # {cross, huber}
 'transfer_learning' : False
 'pv_learning' : False
-'fine_tune'  False
+'fine_tune' : False

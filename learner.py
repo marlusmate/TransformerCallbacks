@@ -1,3 +1,8 @@
+# inspired by: 
+# https://towardsdatascience.com/callbacks-in-neural-networks-b0b006df7626
+# https://github.com/fastai/fastai/blob/master/fastai/learner.py
+# https://github.com/fastai/fastai/blob/master/fastai/callback/schedule.py
+
 from torch import no_grad, save, tensor, load
 from tqdm import tqdm
 from learner_utils import combine_scheds, combined_cos, dump_json
