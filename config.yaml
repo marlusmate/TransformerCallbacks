@@ -1,19 +1,20 @@
-'model_name' : 'vivit-tiny-patch16-224_scratch'
-'epochs_total': 3
-'epochs_froozen': 1
-'n_inst': 
-'train_sz': 0.75
-'seq_len': 4
+'model_name' : 'vit-tiny-patch16-224_scratch'
+'fldir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take1", "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take2"]
+'epochs_total': 25
+'epochs_froozen': 0
+'n_inst': 6000
+'train_sz': 0.5
+'seq_len': 0
 'batch_size': 21
-'base_lr' : 0.00008
+'base_lr' : 0.002
 'drop_rate' : 0.3
 'attn_drop_rate' : 0.2
 'drop_path_rate' : 0.1
 'patch_size' : [2,16,16]
 'window_size' : [2,4,4]
 'tags' : {
-    'Model': 'vivit-tiny-patch16-224_scratch',
-    'Type': 'SelfSupervisedTraining',
+    'Model': 'vit-tiny-patch16-224_scratch',
+    'Type': 'Debug',
     'Seeds': [0]
 }
 'eval_dir' : "Evaluation"
@@ -21,7 +22,7 @@
 'pretrained' : 'skip'
 'PVs': 2
 'min_val_loss' : 0.3
-'min_delta_loss': 0.009
+'min_delta_loss': 0.09
 'patience': 5
 'pretrained_dir':
 'num_classes' : 3

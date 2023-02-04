@@ -73,7 +73,7 @@ else:
     print("no loss function bruh")
 opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
 train_loader, val_loader, test_loader, inst_dist = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, 
-    bs=config["batch_size"], device=train_device, train_sz=config["train_sz"], fldir="C:/Users/DEMAESS2/Multimodal_ProcessData/RunTrain")
+    bs=config["batch_size"], device=train_device, train_sz=config["train_sz"], fldir=config["fldir"])
 
 # Learner
 learner = Learner(config, model, loss, train_loader, val_loader, opt_func,
@@ -86,7 +86,7 @@ mlflow.end_run()
 mlflow.set_experiment("Markus_Transformer")
 with mlflow.start_run(run_name=config["model_name"]):
     mlflow.set_tags(config['tags'])
-    mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"]), artifact_path=config["model_name"])
+    mlflow.log_artifact("config.yaml", artifact_path=config["model_name"])
 
     if config["pv_learning"]:
         learner.pv_learn(config["epochs_total"], params=config["PVs"], n_iter=train_loader.__len__(), loss_we=[0.5, 0.5])
