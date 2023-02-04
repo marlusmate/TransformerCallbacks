@@ -56,13 +56,24 @@ if not config["transfer_learning"]:
             drop_path_rate=config["drop_path_rate"], 
             drop_rate=config["drop_rate"], 
             attn_drop_rate=config["attn_drop_rate"],
-            final_actv=config["final_actv"]
+            final_actv=config["final_actv"],
         ).to(train_device)
+
+elif config["testonly"]:
+    model = load(config["pretraineddir"])
 else:
     # Transfer Learning model
     pretrained_dir = config["pretraineddir"]
     model = load(pretrained_dir)
-    model.reset_classifier(num_classes=3)
+    if config["reset_head"]: model.reset_classifier(num_classes=3)
+    elif config["overhead"]: model.head = nn.Sequential(
+        model.head,
+        nn.GELU(),
+        nn.Linear(config["PVs"], 1024),
+        nn.GELU(),
+        nn.Linear(1024, config["num_classes"]),
+        nn.Softmax()
+    )
     model.to(train_device)
 
 # Loss, Optimizer, Dataloader
@@ -98,7 +109,10 @@ with mlflow.start_run(run_name=config["model_name"]):
     mlflow.set_tags(config['tags'])
     mlflow.log_artifact("config.yaml", artifact_path=config["model_name"])
     mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"])+'/InstanceDistribution.json', artifact_path=config["model_name"])
-    if config["pv_learning"]:
+    if config["testonly"]:
+        learner.test(test_loader)
+
+    elif config["pv_learning"]:
         learner.pv_learn(config["epochs_total"], params=config["PVs"], n_iter=train_loader.__len__(), loss_we=[0.5, 0.5])
         learner.test_pv(test_loader)
     elif config["fine_tune"]:
@@ -109,4 +123,4 @@ with mlflow.start_run(run_name=config["model_name"]):
         learner.test(test_loader)
     
 mlflow.end_run()
-learner.save_model()
+#learner.save_model()

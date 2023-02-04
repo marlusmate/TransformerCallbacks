@@ -1,7 +1,7 @@
 'model_name' : 'vit-tiny-patch16-224_finetune_pv_transfer'
 'fldir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take1", "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take2"]
 'test_dir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed_Test"]
-'epochs_total': 2
+'epochs_total': 25
 'epochs_froozen': 1
 'n_inst': 6000
 'train_inst' : 500
@@ -9,14 +9,14 @@
 'seq_len': 0
 'batch_size': 51
 'base_lr' : 0.001
-'drop_rate' : 0.3
-'attn_drop_rate' : 0.2
-'drop_path_rate' : 0.1
+'drop_rate' : 0.4
+'attn_drop_rate' : 0.3
+'drop_path_rate' : 0.2
 'patch_size' : [2,16,16]
 'window_size' : [2,4,4]
 'tags' : {
     'Model': 'vit-tiny-patch16-224_finetune_pv_transfer',
-    'Type': 'Selfsupervised-Transferlearning-Finetune1',
+    'Type': 'Selfsupervised-Transferlearning-Finetune1-Overhead',
     'Seeds': [0]
 }
 'eval_dir' : "Evaluation"
@@ -24,14 +24,18 @@
 'pretrained' : ''
 'pretraineddir' : 'Models/vit-tiny-patch16-224_finetune_pv/model_callback'
 'PVs': 2
-'min_val_loss' : 0.1
+'min_val_loss' : 0.3
 'min_delta_loss': 0.09
-'patience': 10
+'patience': 7
 'pretrained_dir':
 'num_classes' : 3
 'final_actv' : relu #{relu, soft}
 'loss' : cross # {cross, huber}
 'transfer_learning' : True
 'pv_learning' : False
+'reset_head' : False
+'overhead' : True
 'fine_tune' : True
 'opt' : fastai # {cos, fastai}
+'testonly' : False
+

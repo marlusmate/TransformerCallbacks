@@ -300,6 +300,7 @@ class VisionTransformer(nn.Module):
             pretrained="Dictionaries/vit-tiny-patch16-224.bin",
             frozen_stages=12,
             no_weight_decay = 'norm',
+            overhead=False,
             final_actv=None
     ):
         """
