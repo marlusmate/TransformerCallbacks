@@ -326,3 +326,16 @@ class Learner:
         mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], 
             "Boxplot_PVP_"+str(self.config["seed"])+".png"), artifact_path=self.config["model_name"])
         plt.close()
+
+        # Scatter plot
+        f, (ax1, ax2) = plt.subplots(1,2, sharey=True)
+        ax1.plot(label_rpm, pred_rpm, '*')
+        ax1.plot([0,1], [0,1], '-')
+        ax1.set(title="RPM", xlabel='True Value (normed)', ylabel="Pred Value (normed)")
+        ax2.plot(label_gfl, pred_gfl, '*')
+        ax2.plot([0,1], [0,1], '-')
+        ax2.set(title="GFL", xlabel='True Value (normed)', ylabel="Pred Value (normed)")
+        plt.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"], "Scatterplot_PVP_"+str(self.config["seed"])))
+        mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], 
+            "Scatterplot_PVP_"+str(self.config["seed"])+".png"), artifact_path=self.config["model_name"])
+        plt.close()
