@@ -436,7 +436,8 @@ class VisionTransformer3D(nn.Module):
                 attn_drop=attn_drop_rate,
                 drop_path=dpr_temp[i],
                 norm_layer=norm_layer,
-                act_layer=act_layer
+                act_layer=act_layer,
+                final_actv=None
             )
             for i in range(depth_temp)])
         self.norm_temp = norm_layer(embed_dim) if not use_fc_norm else nn.Identity()
@@ -444,6 +445,11 @@ class VisionTransformer3D(nn.Module):
         # Classifier Head
         self.fc_norm = norm_layer(embed_dim) if use_fc_norm else nn.Identity()
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+
+        if final_actv is not None:
+            self.final_actv = nn.Softmax(dim=-1) if final_actv=='soft' else nn.ReLU()
+        else:
+            self.final_actv = None
 
         if weight_init != 'skip':
             self.init_weights(weight_init)

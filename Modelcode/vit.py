@@ -343,6 +343,7 @@ class VisionTransformer(nn.Module):
         self.pretrained=pretrained 
         #self.freeze_epochs = freeze_epochs
         self.frozen_stages = frozen_stages
+        self.overhead = overhead
 
         self.patch_embed = embed_layer(
             img_size=img_size,
@@ -407,7 +408,7 @@ class VisionTransformer(nn.Module):
                 m = self.blocks[i]
                 m.eval()
                 for param in m.parameters():
-                    param.requires_grad = False        
+                    param.requires_grad = False  
 
     def _unfreeze_stages(self):
         if self.frozen_stages >= 0:
@@ -422,6 +423,9 @@ class VisionTransformer(nn.Module):
                 m.eval()
                 for param in m.parameters():
                     param.requires_grad = True 
+            if self.overhead:
+                for param in self.head[0].parameters():
+                    param.requires_grad = True
 
     def _init_weights(self, m):
         # this fn left here for compat with downstream users

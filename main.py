@@ -34,10 +34,12 @@ if not config["transfer_learning"]:
     elif 'swin' in config["model_name"]:
         model = SwinTransformer(
             num_classes=config["num_classes"], 
-            oad_weights=config["pretrained"], 
+            load_weights=config["pretrained"], 
             drop_path_rate=config["drop_path_rate"], 
+            
             drop_rate=config["drop_rate"], 
-            attn_drop_rate=config["attn_drop_rate"]
+            attn_drop_rate=config["attn_drop_rate"],
+            final_actv=config["final_actv"]
         ).to(train_device)
     if 'vivit' in config["model_name"]:
         model = VisionTransformer3D(
@@ -66,14 +68,18 @@ else:
     pretrained_dir = config["pretraineddir"]
     model = load(pretrained_dir)
     if config["reset_head"]: model.reset_classifier(num_classes=3)
-    elif config["overhead"]: model.head = nn.Sequential(
-        model.head,
-        nn.GELU(),
-        nn.Linear(config["PVs"], 1024),
-        nn.GELU(),
-        nn.Linear(1024, config["num_classes"]),
-        nn.Softmax()
-    )
+    elif config["overhead"]: 
+        model.head = nn.Sequential(
+            model.head,
+            nn.GELU(),
+            nn.Linear(config["PVs"], 1024),
+            nn.GELU(),
+            nn.Linear(1024, config["num_classes"]),
+            nn.Softmax(dim=-1)
+        )
+        for param in model.head[0].parameters():
+            param.requires_grad = False
+        model.overhead=True
     model.to(train_device)
 
 # Loss, Optimizer, Dataloader
@@ -123,4 +129,4 @@ with mlflow.start_run(run_name=config["model_name"]):
         learner.test(test_loader)
     
 mlflow.end_run()
-#learner.save_model()
+learner.save_model()

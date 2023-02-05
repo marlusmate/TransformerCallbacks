@@ -507,7 +507,8 @@ class SwinTransformer(nn.Module):
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
                  pretrained="Dictionaries/swin-tiny-patch4-window7-224.bin", load_weights='', frozen_stages=4,
-                 use_checkpoint=False, fused_window_process=False, **kwargs):
+                 use_checkpoint=False, fused_window_process=False, 
+                 final_actv=None,**kwargs):
         super().__init__()
 
         self.num_classes = num_classes
@@ -561,8 +562,21 @@ class SwinTransformer(nn.Module):
         self.norm = norm_layer(self.num_features)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
+        
+        if final_actv is not None:
+            self.final_actv = nn.Softmax(dim=-1) if final_actv=='soft' else nn.ReLU()
+        else:
+            self.final_actv = None
 
         self.apply(self._init_weights) if self.load_weights=='skip' else self._load_weights()
+
+    def reset_classifier(self, num_classes: int, global_pool=None):
+        self.num_classes = num_classes
+        if self.global_pool is not None:
+            assert global_pool in ('', 'avg', 'token')
+            self.global_pool = global_pool
+        self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+
 
     def _load_weights(self):
         state_dict = torch.load(self.pretrained)
@@ -656,6 +670,7 @@ class SwinTransformer(nn.Module):
     def forward(self, x):
         x = self.forward_features(x)
         x = self.head(x)
+        if self.final_actv is not None: x = self.final_actv(x)
         return x
 
     def flops(self):
