@@ -1,41 +1,48 @@
-'model_name' : 'swin-tiny-patch4-window7-224_scratch_pv'
+'model_name' : 'vivit-tiny-patch16-224_finetune'
 'fldir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take1", "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take2"]
 'test_dir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed_Test"]
-'epochs_total': 10
-'epochs_froozen': 1
+'epochs_total': 20
+'epochs_froozen': 5
 'n_inst': 2000
 'train_inst' : 500
 'val_sz': 0.75
-'seq_len': 0
-'batch_size': 31
-'base_lr' : 0.00008
+'seq_len': 4
+'batch_size': 21
+'base_lr' : 0.00125
+'min_lr': 0.00000025
+'warmup_lr': 0.00000025
+'we_decay' : 0.05
+'layer_decay' : 0.08
 'drop_rate' : 0.3
 'attn_drop_rate' : 0.2
 'drop_path_rate' : 0.1
-'patch_size' : [2,16,16]
-'window_size' : [1,7,7]
+'patch_size' : [1,16,16]
+'window_size' : [2,7,7]
 'tags' : {
-    'Model': 'swin-tiny-patch4-window7-224_scratch_pv',
-    'Type': 'Semi-SelfsupervisedPretraining',
+    'Model': 'vivit-tiny-patch16-224_finetune',
+    'Type': 'Selfsupervised-Training',
     'Seeds': [0]
 }
 'eval_dir' : "Evaluation"
 'seed' : 0
-'pretrained' : 'skip'
-'pretraineddir' : 'Models/vit-tiny-patch16-224_finetune_pv/model_callback'
+'pretrained' : ''
+'pretraineddir' : 'Models/swin-tiny-patch4-window7-224_scratch_pv/model_callback'
 'PVs': 2
-'min_val_loss' : 0.1
+'min_val_loss' : 0.3
 'min_delta_loss': 0.09
-'patience': 5
+'patience': 6
 'pretrained_dir':
-'num_classes' : 2
-'final_actv' :  #{relu, soft, }
-'loss' : huber # {cross, huber}
+'num_classes' : 3
+'final_actv' :  soft #{relu, soft, }
+'loss' :  cross # {cross, huber}
 'transfer_learning' : False
-'pv_learning' : True
+'pv_learning' : False
 'reset_head' : False
 'overhead' : False
-'fine_tune' : False
+'fine_tune' : True
 'opt' : fastai # {cos, fastai}
+'scheduler' : cosine
+'warmup_ep' : 0
+'warmup_prefix' : True
 'testonly' : False
 

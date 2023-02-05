@@ -537,7 +537,7 @@ class SwinTransformer3D(nn.Module):
     """
 
     def __init__(self,
-                 pretrained="Dictionaries/swin-tiny-patch4-window7-224_renamed.bin",
+                 pretrained="Dictionaries/swin-tiny-patch4-window7-224.bin",
                  pretrained2d=True,
                  load_weights = "",
                  patch_size=(1,4,4),
@@ -554,7 +554,7 @@ class SwinTransformer3D(nn.Module):
                  drop_path_rate=0.2,
                  norm_layer=nn.LayerNorm,
                  patch_norm=False,
-                 frozen_stages=-1,
+                 frozen_stages=4,
                  use_checkpoint=False,
                  num_classes=3,
                  global_pool = 'avg',

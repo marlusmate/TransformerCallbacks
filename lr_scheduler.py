@@ -14,26 +14,27 @@ from timm.scheduler.step_lr import StepLRScheduler
 from timm.scheduler.scheduler import Scheduler
 
 
-def build_scheduler(config, optimizer, n_iter_per_epoch):
-    num_steps = int(config["epochs"] * n_iter_per_epoch)
-    warmup_steps = int(config["scheduler"]["warmup_ep"]* n_iter_per_epoch)
-    decay_steps = int(config["scheduler"]["decay_ep"] * n_iter_per_epoch)
-    multi_steps = [i * n_iter_per_epoch for i in config["scheduler"]["ml_step"]]
+def build_scheduler(self, config, optimizer, n_iter_per_epoch):
+    epochs = self.config["epochs_froozen"] if self.config["fine_tune"] and not self.started else self.config["epochs_total"]   
+    num_steps = int(epochs * n_iter_per_epoch)
+    warmup_steps = int(config["warmup_ep"]* n_iter_per_epoch)
+    decay_steps = 2 #int(config["scheduler"]["decay_ep"] * n_iter_per_epoch)
+    multi_steps =[2] #[i * n_iter_per_epoch for i in config["scheduler"]["ml_step"]]
 
     lr_scheduler = None
-    if config["scheduler"]["name"] == 'cosine':
+    if config["scheduler"] == 'cosine':
         lr_scheduler = CosineLRScheduler(
             optimizer,
-            t_initial=(num_steps - warmup_steps) if config["scheduler"]["warmup_prefix"] else num_steps,
+            t_initial=(num_steps - warmup_steps) if config["warmup_prefix"] else num_steps,
             #t_mul=1.,
-            lr_min=config["scheduler"]["min_lr"],
-            warmup_lr_init=config["scheduler"]["warmup_lr"],
+            lr_min=config["min_lr"],
+            warmup_lr_init=config["warmup_lr"],
             warmup_t=warmup_steps,
             cycle_limit=1,
             t_in_epochs=False,
-            warmup_prefix=config["scheduler"]["warmup_prefix"],
+            warmup_prefix=config["warmup_prefix"],
         )
-    elif config["scheduler"]["name"] == 'linear':
+    elif config["scheduler"] == 'linear':
         lr_scheduler = LinearLRScheduler(
             optimizer,
             t_initial=num_steps,
@@ -42,7 +43,7 @@ def build_scheduler(config, optimizer, n_iter_per_epoch):
             warmup_t=warmup_steps,
             t_in_epochs=False,
         )
-    elif config["scheduler"]["name"] == 'step':
+    elif config["scheduler"] == 'step':
         lr_scheduler = StepLRScheduler(
             optimizer,
             decay_t=decay_steps,

@@ -39,17 +39,14 @@ def create_seqs_from_df(seq_len, df=None):
     # opt load df
     for seq_id in df.groupby(["SeqID"]).groups:
         temp_df = df[df["SeqID"]==seq_id]
-        temp = np.array_split(np.array(temp_df), ceil(len(temp_df)/seq_len))
-        if len(temp_df) % seq_len != 0:
-            for p in temp[:-1]:
-                arr = np.array(p)
-                data_paths.append([(path[0], path[1]) for path in arr])
-                labels.append(arr[0][-1])
-        else:            
-            for p in temp:
-                arr = np.array(p)
-                data_paths.append([(path[0], path[1]) for path in arr])
-                labels.append(arr[0][-1])
+        temp_idx = [seq_len*i for i in range(ceil(len(temp_df)/seq_len)) if seq_len*i < 20][1:]
+        temp = np.array_split(np.array(temp_df), ceil(len(temp_df)/seq_len))          
+        temp = np.split(np.array(temp_df), temp_idx)  
+        for p in temp:
+            arr = np.array(p)
+            if not arr.shape[0] == seq_len: continue
+            data_paths.append([(path[0], path[1]) for path in arr])
+            labels.append(arr[0][-1])
     return data_paths, labels
 
 def load_yaml(fn):

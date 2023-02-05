@@ -13,6 +13,7 @@ from fastcore.foundation import L
 import numpy as np
 import mlflow
 from functools import partial
+from lr_scheduler import build_scheduler
 
 def norm_bias_params(m, with_bias=True):
     "Return all bias and BatchNorm parameters"
@@ -108,9 +109,9 @@ class Learner:
             self.epoch_val_accuracy += acc / self.n_iter
             self.epoch_val_loss += self.loss / self.n_iter
         if self.testing:
-            self.preds.append(self.pred.cpu()[0].numpy())
+            self.preds.append(self.pred.cpu().numpy())
             self.predscl.append(self.pred.argmax(dim=1).cpu().numpy())
-            self.labels.append(self.yb.cpu()[0].numpy())
+            self.labels.append(self.yb.cpu().numpy())
 
 
     def all_batches(self):
@@ -124,7 +125,7 @@ class Learner:
         self._backward()
         self._step()
         self.opt.zero_grad()
-        if self.sched is not None: self.sched.step()
+        if self.sched is not None: self.sched.step(self.epoch)
 
     def _do_loss(self):
         self.loss_grad = 0
@@ -150,7 +151,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[1]#.mean(dim=1)
+        self.yb= data[2] #.mean(dim=1)
         if self.cbs is not None: self.cbs.before_batch() 
         self._do_one_batch()
         if self.cbs is not None: self.cbs.after_batch()
@@ -213,8 +214,8 @@ class Learner:
                 'mom': combined_cos(pct_start, *(self.moms if moms is None else moms))
                 }
             cbs = ParamScheduler(scheds, n_iter, epochs)
-        elif not self.started:
-            self.sched = optim.lr_scheduler.CosineAnnealingLR(self.opt, T_max=n_iter)           
+        else:
+            self. sched = build_scheduler(self, self.config, optimizer=self.opt, n_iter_per_epoch=n_iter)           
             cbs = None
         self.started=True 
         self.fit(epochs, cbs)
@@ -227,7 +228,7 @@ class Learner:
         self.fit_one_cycle(epochs-freeze_epochs, n_iter, slice(base_lr/lr_mult, base_lr), pct_start=0.3, div=5)
 
     def pv_learn(self, epochs, params, n_iter, loss_we=[0.6, 0.4], base_lr=2e-3):
-        assert np.array(loss_we).sum() == 1, 'Loss Weights for PV Losses must add up to 1'
+        #assert np.array(loss_we).sum() == 1, 'Loss Weights for PV Losses must add up to 1'
         assert params == len(loss_we), 'every process variable must be one loss weight assigned'
         self.pv_learning = True
         self.params = params
@@ -306,6 +307,7 @@ class Learner:
         print("Model abgespeichert")
 
     def test_pv(self, dls_test):
+        self.epoch_val_accuracy, self.epoch_val_loss = 0.,0.
         self.preds, self.predscl, self.labels = [], [], []
         self.testing = True
         self._do_epoch_validate(dl=dls_test)
@@ -355,10 +357,10 @@ class Learner:
         # Scatter plot
         f, (ax1, ax2) = plt.subplots(1,2, sharey=True)
         ax1.plot(label_rpm, pred_rpm, '*')
-        ax1.plot([0,1], [0,1], '-')
+        ax1.plot([0,1], [0,1], 'k--')
         ax1.set(title="RPM", xlabel='True Value (normed)', ylabel="Pred Value (normed)")
         ax2.plot(label_gfl, pred_gfl, '*')
-        ax2.plot([0,1], [0,1], '-')
+        ax2.plot([0,1], [0,1], 'k--')
         ax2.set(title="GFL", xlabel='True Value (normed)', ylabel="Pred Value (normed)")
         plt.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"], "Scatterplot_PVP_"+str(self.config["seed"])))
         mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], 

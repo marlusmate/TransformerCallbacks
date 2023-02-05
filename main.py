@@ -11,6 +11,7 @@ from callbacks import *
 from learner import Learner
 from fastai.optimizer import OptimWrapper, Optimizer
 from logger import logging
+from model_optimizer import build_adamw
 import os
 
 # Setup
@@ -19,7 +20,7 @@ logger = logging.getLogger('vswin_logger')
 train_device = device('cuda:0' if cuda.is_available() else 'cpu')
 callback_dir = os.path.join("Models", config["model_name"])
 # Init Model
-if not config["transfer_learning"]:
+if not config["transfer_learning"] and not config["testonly"]:
     if 'vswin' in config["model_name"]:
         model = MSwinTransformer3D(
             num_classes=config["num_classes"], 
@@ -36,7 +37,7 @@ if not config["transfer_learning"]:
             num_classes=config["num_classes"], 
             load_weights=config["pretrained"], 
             drop_path_rate=config["drop_path_rate"], 
-            
+
             drop_rate=config["drop_rate"], 
             attn_drop_rate=config["attn_drop_rate"],
             final_actv=config["final_actv"]
@@ -82,13 +83,6 @@ else:
         model.overhead=True
     model.to(train_device)
 
-# Loss, Optimizer, Dataloader
-if 'cross' in config["loss"]:
-    loss = nn.CrossEntropyLoss()
-elif 'huber' in config["loss"]:
-    loss = nn.HuberLoss()
-else:
-    print("no loss function bruh")
 
 train_loader, _, _, inst_dist1 = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, 
     bs=config["batch_size"], device=train_device, train_sz=0.99, fldir=config["fldir"])
@@ -97,13 +91,25 @@ inst_dist = {'Training': inst_dist1['Training'], 'Validation': inst_dist2['Train
 dump_json(inst_dist, dest=os.path.join(config["eval_dir"], config["model_name"])+'/InstanceDistribution.json')
 print("IntsanceDistribution saved")
 
+# Loss, Optimizer, Dataloader
+
+if config["loss"] is None:
+    loss = nn.MSELoss()
+elif 'cross' in config["loss"]:
+    train_dist = inst_dist["Training"]
+    we_target = tensor([(1/config["num_classes"])*(1-(cl_inst/(sum(train_dist)/config["num_classes"])-1)) for cl_inst in train_dist]).to(train_device)
+    loss = nn.CrossEntropyLoss(weight=we_target)
+elif 'huber' in config["loss"]:
+    loss = nn.HuberLoss()
+
 if config["opt"] == 'fastai':
     opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
-else:
-    opt_func = optim.AdamW(model.parameters(), lr=config["base_lr"])
-
+    opt=None
+else:    
+    opt = build_adamw(model, config["base_lr"], we_decay=config["we_decay"])
+    opt_func=None
 # Learner
-learner = Learner(config, model, loss, train_loader, val_loader, opt_func, opt=None,
+learner = Learner(config, model, loss, train_loader, val_loader, opt_func, opt=opt,
     min_delta=config["min_delta_loss"], min_val_loss=config["min_val_loss"], callback_dir=callback_dir, patience=config["patience"]
 ) 
 
@@ -113,13 +119,15 @@ mlflow.end_run()
 mlflow.set_experiment("Markus_Transformer")
 with mlflow.start_run(run_name=config["model_name"]):
     mlflow.set_tags(config['tags'])
+    mlflow.log_metrics(dict(zip(['0', '1', '2'],we_target.cpu().numpy())))
+    print("Loss weights to counter imbalanced data set: ", we_target)
     mlflow.log_artifact("config.yaml", artifact_path=config["model_name"])
     mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"])+'/InstanceDistribution.json', artifact_path=config["model_name"])
     if config["testonly"]:
-        learner.test(test_loader)
+        learner.test(test_loader) if not config["pv_learning"] else learner.test_pv(test_loader)
 
     elif config["pv_learning"]:
-        learner.pv_learn(config["epochs_total"], params=config["PVs"], n_iter=train_loader.__len__(), loss_we=[0.5, 0.5])
+        learner.pv_learn(config["epochs_total"], params=config["PVs"], n_iter=train_loader.__len__(), loss_we=[1, 1])
         learner.test_pv(test_loader)
     elif config["fine_tune"]:
         learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=config["base_lr"])

@@ -436,8 +436,7 @@ class VisionTransformer3D(nn.Module):
                 attn_drop=attn_drop_rate,
                 drop_path=dpr_temp[i],
                 norm_layer=norm_layer,
-                act_layer=act_layer,
-                final_actv=None
+                act_layer=act_layer
             )
             for i in range(depth_temp)])
         self.norm_temp = norm_layer(embed_dim) if not use_fc_norm else nn.Identity()
