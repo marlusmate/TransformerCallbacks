@@ -1,3 +1,8 @@
+# inspired by: 
+# https://towardsdatascience.com/callbacks-in-neural-networks-b0b006df7626
+# https://github.com/fastai/fastai/blob/master/fastai/learner.py
+# https://github.com/fastai/fastai/blob/master/fastai/callback/schedule.py
+
 from torch import no_grad, save, tensor, load
 from tqdm import tqdm
 from learner_utils import combine_scheds, combined_cos, dump_json
@@ -17,11 +22,11 @@ def norm_bias_params(m, with_bias=True):
     return res
 
 class Learner:
-    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt_func, patience=1, min_delta=.000, min_val_loss=0.0005, callback_dir="Models"):
+    def __init__(self, config, model, loss_func, train_dl, valid_dl, opt_func, patience=1, min_delta=.000, min_val_loss=0.0005, opt=None, callback_dir="Models/"):
         self.model = model
         self.loss_func = loss_func
         self.opt_func = opt_func
-        self.opt = None
+        self.opt = opt
         self.dls_train = train_dl
         self.dls_valid = valid_dl
         self.wd_bn_bias=False
@@ -36,6 +41,10 @@ class Learner:
         self.min_validation_loss = min_val_loss
         self.callback_dir = callback_dir
         self.callback_set = False
+        self.epoch_count = 0
+        self.cbs=None
+        self.sched=None
+        self.started=False
 
     def early_stop(self, validation_loss):
         if validation_loss < self.min_validation_loss:
@@ -43,11 +52,15 @@ class Learner:
             self.counter = 0
             print("Early stopping counter set to: ", self.counter)
             if self.epoch_val_accuracy > self.last_acc:
-                save(self.model, self.callback_dir+"_callback")
+                save(self.model, self.callback_dir+"/model_callback")
                 self.last_acc = self.epoch_val_accuracy
+                print("Callback Model gespeichert, acc: ", self.epoch_val_accuracy)
+            else:
+                save(self.model, self.callback_dir+"/model_callback")
+                print("Callback Model gespeichert, loss: ", validation_loss)
             self.callback_set = True
             self.last_loss = validation_loss
-            print("Callback Model gespeichert, loss: ", validation_loss)
+            
         elif abs(validation_loss - self.last_loss) < self.min_delta:
             self.counter += 1
             self.last_loss = validation_loss
@@ -60,7 +73,7 @@ class Learner:
             print("Early stopping counter set to: ", self.counter)
             if self.counter >= self.patience:
                 return True
-        
+        self.last_loss = validation_loss
         return False
 
     def _bn_bias_state(self, with_bias): return norm_bias_params(self.model, with_bias).map(self.opt.state)
@@ -95,9 +108,9 @@ class Learner:
             self.epoch_val_accuracy += acc / self.n_iter
             self.epoch_val_loss += self.loss / self.n_iter
         if self.testing:
-            self.preds.append(self.pred.cpu().numpy())
+            self.preds.append(self.pred.cpu()[0].numpy())
             self.predscl.append(self.pred.argmax(dim=1).cpu().numpy())
-            self.labels.append(self.yb.cpu().numpy())
+            self.labels.append(self.yb.cpu()[0].numpy())
 
 
     def all_batches(self):
@@ -111,6 +124,7 @@ class Learner:
         self._backward()
         self._step()
         self.opt.zero_grad()
+        if self.sched is not None: self.sched.step()
 
     def _do_loss(self):
         self.loss_grad = 0
@@ -120,6 +134,9 @@ class Learner:
         elif self.pv_learning:
             for i in range(self.params):
                 self.loss_grad += self.loss_func(self.pred[:,i], self.yb[:,i]) * self.loss_we[i]
+            self.loss = self.loss_grad.clone()
+        elif self.testing:
+            self.loss_grad = self.loss_func(self.pred, self.yb)
             self.loss = self.loss_grad.clone()
                 
 
@@ -133,10 +150,10 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[2] #.mean(dim=1)
-        self.cbs.before_batch()
+        self.yb= data[1]#.mean(dim=1)
+        if self.cbs is not None: self.cbs.before_batch() 
         self._do_one_batch()
-        self.cbs.after_batch()
+        if self.cbs is not None: self.cbs.after_batch()
 
     def _do_epoch_train(self):
         print("Train Epoch:")
@@ -153,11 +170,12 @@ class Learner:
         print(
                     f"Epoch : {self.epoch+1} - loss : {self.epoch_loss:.4f} - acc: {self.epoch_accuracy:.4f} - val_loss : {self.epoch_val_loss:.4f} - val_acc: {self.epoch_val_accuracy:.4f}\n"
                     )
-        mlflow.log_metric("loss_train_epoch", self.epoch_loss, step=self.cbs.epoch)
-        mlflow.log_metric("acc_train_epoch", self.epoch_accuracy, step=self.cbs.epoch)
-        mlflow.log_metric("loss_val_epoch", self.epoch_val_loss, step=self.cbs.epoch)
-        mlflow.log_metric("acc_val_epoch", self.epoch_val_accuracy, step=self.cbs.epoch)
-        self.cbs.epoch += 1
+        mlflow.log_metric("loss_train_epoch", self.epoch_loss, step=self.epoch_count)
+        mlflow.log_metric("acc_train_epoch", self.epoch_accuracy, step=self.epoch_count)
+        mlflow.log_metric("loss_val_epoch", self.epoch_val_loss, step=self.epoch_count)
+        mlflow.log_metric("acc_val_epoch", self.epoch_val_accuracy, step=self.epoch_count)
+        if self.cbs is not None: self.cbs.epoch += 1
+        self.epoch_count += 1
 
     def _do_epoch_validate(self, ds_idx=1, dl=None):
         print("Val Epoch:")
@@ -167,17 +185,17 @@ class Learner:
         with no_grad(): self.all_batches()
 
     def _do_fit(self):
-        self.cbs.before_fit()
+        if self.cbs is not None: self.cbs.before_fit()
         for epoch in range(self.epochs):
             self.epoch = epoch
             self._do_epoch()
             if self.early_stop(self.epoch_val_loss):
                 break
 
-        self.cbs.after_fit()
+        if self.cbs is not None: self.cbs.after_fit()
 
     def fit(self, epochs, cbs):
-        cbs.learn = self
+        if cbs is not None: cbs.learn = self
         self.cbs = cbs
         #self.opt 
         self.epochs =epochs
@@ -186,13 +204,19 @@ class Learner:
     def fit_one_cycle(self, epochs, n_iter, lr_max=None, div=25., div_final=1e5, pct_start=.25, moms=(0.95,0.85,0.95)):
         #if not self.cb.begin_fit(): return
         #self.opt.defaults['lr'] = self.lr_max if lr_max is None else lr_max
-        if self.opt is None: self.create_opt()
-        self.opt.set_hyper('lr', self.lr if lr_max is None else lr_max)
-        lr_max = np.array([h['lr'] for h in self.opt.hypers])
-        scheds = {'lr': combined_cos(pct_start, lr_max/div, lr_max, lr_max/div_final),
-              'mom': combined_cos(pct_start, *(self.moms if moms is None else moms))
-              }
-        cbs = ParamScheduler(scheds, n_iter, epochs)
+        if self.config["opt"] == 'fastai':
+            if self.opt is None:
+                self.create_opt()
+            self.opt.set_hyper('lr', self.lr if lr_max is None else lr_max)
+            lr_max = np.array([h['lr'] for h in self.opt.hypers])
+            scheds = {'lr': combined_cos(pct_start, lr_max/div, lr_max, lr_max/div_final),
+                'mom': combined_cos(pct_start, *(self.moms if moms is None else moms))
+                }
+            cbs = ParamScheduler(scheds, n_iter, epochs)
+        elif not self.started:
+            self.sched = optim.lr_scheduler.CosineAnnealingLR(self.opt, T_max=n_iter)           
+            cbs = None
+        self.started=True 
         self.fit(epochs, cbs)
 
     def fine_tune(self, epochs, freeze_epochs, n_iter, base_lr=2e-3, lr_mult=100):
@@ -211,10 +235,11 @@ class Learner:
         self.fit_one_cycle(epochs, n_iter, lr_max=base_lr)
 
     def test(self, dls_test):
+        self.epoch_val_accuracy, self.epoch_val_loss = 0.,0.
         self.preds, self.predscl, self.labels = [], [], []
         self.testing = True
         if self.callback_set:
-            self.model = load(self.callback_dir+"_callback")
+            self.model = load(self.callback_dir+"/model_callback")
             print("Model Callback loaded")
         self._do_epoch_validate(dl=dls_test)
         self.seed = self.config["tags"]["Seeds"][0]
@@ -260,7 +285,7 @@ class Learner:
 
         # F1 Score
         self.predsoh=one_hot(tensor(self.predscl), num_classes=3).squeeze(1)
-        f1 = f1_score(tensor(self.labels).squeeze(1).numpy(), tensor(self.predscl).squeeze(1).numpy(), average='weighted')
+        f1 = f1_score(np.asarray(self.labels), np.asarray(self.predscl), average='weighted')
         f1_0 = f1_score(self.labelsoh[:,0], self.predsoh[:,0])
         f1_1 = f1_score(self.labelsoh[:,1], self.predsoh[:,1])
         f1_2 = f1_score(self.labelsoh[:,2], self.predsoh[:,2])

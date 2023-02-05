@@ -299,7 +299,9 @@ class VisionTransformer(nn.Module):
             pre_logits=False,
             pretrained="Dictionaries/vit-tiny-patch16-224.bin",
             frozen_stages=12,
-            no_weight_decay = 'norm'
+            no_weight_decay = 'norm',
+            overhead=False,
+            final_actv=None
     ):
         """
         Args:
@@ -341,6 +343,7 @@ class VisionTransformer(nn.Module):
         self.pretrained=pretrained 
         #self.freeze_epochs = freeze_epochs
         self.frozen_stages = frozen_stages
+        self.overhead = overhead
 
         self.patch_embed = embed_layer(
             img_size=img_size,
@@ -377,7 +380,13 @@ class VisionTransformer(nn.Module):
         # Classifier Head
         self.fc_norm = norm_layer(embed_dim) if use_fc_norm else nn.Identity()
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
-
+        if final_actv =='soft':
+            self.final_actv = nn.Softmax(dim=-1) 
+        elif final_actv =='relu':
+            self.final_actv = nn.ReLU()
+        else:
+            self.final_actv = None
+        
         if weight_init != 'skip':
             self.init_weights(weight_init)
 
@@ -396,10 +405,10 @@ class VisionTransformer(nn.Module):
         if self.frozen_stages >= 1:
             self.pos_drop.eval()
             for i in range(0, self.frozen_stages):
-                m = self.layers[i]
+                m = self.blocks[i]
                 m.eval()
                 for param in m.parameters():
-                    param.requires_grad = False        
+                    param.requires_grad = False  
 
     def _unfreeze_stages(self):
         if self.frozen_stages >= 0:
@@ -414,6 +423,9 @@ class VisionTransformer(nn.Module):
                 m.eval()
                 for param in m.parameters():
                     param.requires_grad = True 
+            if self.overhead:
+                for param in self.head[0].parameters():
+                    param.requires_grad = True
 
     def _init_weights(self, m):
         # this fn left here for compat with downstream users
@@ -482,5 +494,6 @@ class VisionTransformer(nn.Module):
     def forward(self, x):
         x = self.forward_features(x)
         x = self.forward_head(x, pre_logits=self.pre_logits)
+        if self.final_actv is not None: x = self.final_actv(x)
         return x
 

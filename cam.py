@@ -1,4 +1,4 @@
-from cam_utils import GradCAM
+from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from pytorch_grad_cam.utils.image import show_cam_on_image
 import torch
@@ -13,15 +13,28 @@ def reshape_transform(tensor, height=14, width=14):
     result = result.transpose(2, 3).transpose(1, 2)
     return result
 
-
-dls = build_loader(bs=9, fldir="C:/Users/MarkOne/data/regimeclassification", n_inst=100)
-model = torch.load("Models/")
-target_layers = [model.layer4[-1]]
-input_tensor = torch.randn((1,224,224))
-cam = GradCAM(model=model, target_layers=target_layers, use_cuda=False)
+train_device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+dls_train, dls_val, dls_test, dist = build_loader(bs=9, n_inst=9, device=train_device, train_sz=9, fldir="C:/Users/DEMAESS2/Multimodal_ProcessData/RunTrain")#, fldir="C:/Users/DEMAESS2/Multimodal_ProcessData/RunTrain")
+data_list = list(dls_train)
+n_img = 9
+img_0 = data_list[0][0]
+label_0 = data_list[0][2]
+model = torch.load("Models/vit-tiny-patch16-224_scratch/Model", map_location=train_device)
+target_layers = [model.blocks[-1].norm1]
+input_tensor = img_0 # Batch size 1
+cam = GradCAM(model=model, target_layers=target_layers, use_cuda=False, reshape_transform=reshape_transform)
 targets = [ClassifierOutputTarget(1)]
 
-grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
-grayscale_cam = grayscale_cam[0, :]
-visualization = show_cam_on_image(input_tensor, grayscale_cam, use_rgb=False)
+maps = torch.empty((n_img, 1, 224, 224)).numpy()
+for i in range(n_img):
+    grayscale_cam = cam(input_tensor=input_tensor[i].unsqueeze(0), targets=None)
+    grayscale_cam = grayscale_cam[0, :]
+    visualization = show_cam_on_image(input_tensor[i].cpu().numpy(), grayscale_cam, use_rgb=False)
+    maps[i] = visualization
+
+from PIL import Image
+for temp in maps:
+    temp = Image.fromarray(temp.squeeze(0))
+    temp.show()
+print("Fertsch")
 
