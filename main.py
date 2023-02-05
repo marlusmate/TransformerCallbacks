@@ -50,7 +50,9 @@ if not config["transfer_learning"] and not config["testonly"]:
             weight_init=config["pretrained"],
             drop_rate=config["drop_rate"], 
             attn_drop_rate=config["attn_drop_rate"], 
-            drop_path_rate=config["drop_path_rate"]
+            drop_path_rate=config["drop_path_rate"],
+            final_actv=config["final_actv"],
+            global_pool=config["spatial_pool"]
         ).to(train_device)
     elif 'vit' in config["model_name"]:
         model = VisionTransformer(
@@ -95,12 +97,14 @@ print("IntsanceDistribution saved")
 
 if config["loss"] is None:
     loss = nn.MSELoss()
+    we_target = tensor([1/config["num_classes"] for _ in range(config["num_classes"])])
 elif 'cross' in config["loss"]:
     train_dist = inst_dist["Training"]
     we_target = tensor([(1/config["num_classes"])*(1-(cl_inst/(sum(train_dist)/config["num_classes"])-1)) for cl_inst in train_dist]).to(train_device)
     loss = nn.CrossEntropyLoss(weight=we_target)
 elif 'huber' in config["loss"]:
     loss = nn.HuberLoss()
+    we_target = tensor([1/config["num_classes"] for _ in range(config["num_classes"])])
 
 if config["opt"] == 'fastai':
     opt_func = OptimWrapper(opt=optim.Adam(model.parameters()))
@@ -127,7 +131,11 @@ with mlflow.start_run(run_name=config["model_name"]):
         learner.test(test_loader) if not config["pv_learning"] else learner.test_pv(test_loader)
 
     elif config["pv_learning"]:
-        learner.pv_learn(config["epochs_total"], params=config["PVs"], n_iter=train_loader.__len__(), loss_we=[1, 1])
+        learner.loss_we = [1]
+        if not config["fine_tune"]:
+            learner.pv_learn(config["epochs_total"], params=config["PVs"], n_iter=train_loader.__len__(), loss_we=[1]) 
+        else:
+            learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=config["base_lr"])
         learner.test_pv(test_loader)
     elif config["fine_tune"]:
         learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=config["base_lr"])

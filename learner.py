@@ -33,7 +33,7 @@ class Learner:
         self.wd_bn_bias=False
         self.train_bn =True
         self.config = config
-        self.pv_learning = False
+        self.pv_learning = config["pv_learning"]
         self.patience = patience
         self.min_delta = min_delta
         self.counter = 0
@@ -109,9 +109,9 @@ class Learner:
             self.epoch_val_accuracy += acc / self.n_iter
             self.epoch_val_loss += self.loss / self.n_iter
         if self.testing:
-            self.preds.append(self.pred.cpu().numpy())
+            self.preds.append(self.pred.cpu()[0].numpy())
             self.predscl.append(self.pred.argmax(dim=1).cpu().numpy())
-            self.labels.append(self.yb.cpu().numpy())
+            self.labels.append(self.yb.cpu()[0].numpy())
 
 
     def all_batches(self):
@@ -133,8 +133,9 @@ class Learner:
             self.loss_grad = self.loss_func(self.pred, self.yb)
             self.loss = self.loss_grad.clone()
         elif self.pv_learning:
-            for i in range(self.params):
-                self.loss_grad += self.loss_func(self.pred[:,i], self.yb[:,i]) * self.loss_we[i]
+            #for i in range(self.params):
+                #self.loss_grad += self.loss_func(self.pred[:,i], self.yb[:,i]) * self.loss_we[i]
+            self.loss_grad = self.loss_func(self.pred, self.yb)
             self.loss = self.loss_grad.clone()
         elif self.testing:
             self.loss_grad = self.loss_func(self.pred, self.yb)
@@ -151,7 +152,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[2] #.mean(dim=1)
+        self.yb= data[1][:,:,:self.config["PVs"]].mean(dim=1)
         if self.cbs is not None: self.cbs.before_batch() 
         self._do_one_batch()
         if self.cbs is not None: self.cbs.after_batch()
@@ -229,7 +230,7 @@ class Learner:
 
     def pv_learn(self, epochs, params, n_iter, loss_we=[0.6, 0.4], base_lr=2e-3):
         #assert np.array(loss_we).sum() == 1, 'Loss Weights for PV Losses must add up to 1'
-        assert params == len(loss_we), 'every process variable must be one loss weight assigned'
+        #assert params == len(loss_we), 'every process variable must be one loss weight assigned'
         self.pv_learning = True
         self.params = params
         self.loss_we = loss_we
