@@ -572,9 +572,6 @@ class SwinTransformer(nn.Module):
 
     def reset_classifier(self, num_classes: int, global_pool=None):
         self.num_classes = num_classes
-        if self.global_pool is not None:
-            assert global_pool in ('', 'avg', 'token')
-            self.global_pool = global_pool
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
 

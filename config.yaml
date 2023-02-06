@@ -2,7 +2,7 @@
 'fldir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take1", "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take2"]
 'test_dir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed_Test"]
 'epochs_total': 15
-'epochs_froozen': 10
+'epochs_froozen': 3
 'n_inst': 
 'train_inst' : 500
 'val_sz': 0.75
@@ -20,24 +20,24 @@
 'window_size' : [2,7,7]
 'tags' : {
     'Model': 'vswin-tiny-patch4-window7-224_finetune_pv_transfer',
-    'Type': 'Semi-Selfsupervised-Pretraining',
+    'Type': 'Selfsupervised-TransferLearning',
     'Seeds': [0]
 }
 'eval_dir' : "Evaluation"
 'seed' : 0
 'pretrained' : ''
-'pretraineddir' : 'Models/swin-tiny-patch4-window7-224_scratch_pv/model_callback'
+'pretraineddir' : 'Models/vswin-tiny-patch4-window7-224_finetune_pv/model_callback'
 'PVs': 2
-'min_val_loss' : 0.055
+'min_val_loss' : 0.3
 'min_delta_loss': 0.09
 'patience': 10
 'pretrained_dir':
-'num_classes' : 2
-'final_actv' :  relu #{relu, soft, }
-'loss' :   # {cross, huber}
-'transfer_learning' : False
-'pv_learning' : True
-'reset_head' : False
+'num_classes' : 3
+'final_actv' :  softmax #{relu, soft, }
+'loss' :  cross # {cross, huber}
+'transfer_learning' : True
+'pv_learning' : False
+'reset_head' : True
 'overhead' : False
 'fine_tune' : True
 'opt' : fastai # {cos, fastai}

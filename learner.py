@@ -109,9 +109,9 @@ class Learner:
             self.epoch_val_accuracy += acc / self.n_iter
             self.epoch_val_loss += self.loss / self.n_iter
         if self.testing:
-            self.preds.append(self.pred.cpu()[0].numpy())
+            self.preds.append(self.pred.cpu().numpy())
             self.predscl.append(self.pred.argmax(dim=1).cpu().numpy())
-            self.labels.append(self.yb.cpu()[0].numpy())
+            self.labels.append(self.yb.cpu().numpy())
 
 
     def all_batches(self):
@@ -152,7 +152,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[1][:,:,:self.config["PVs"]].mean(dim=1)
+        self.yb= data[2]#[:,:,:self.config["PVs"]].mean(dim=1)
         if self.cbs is not None: self.cbs.before_batch() 
         self._do_one_batch()
         if self.cbs is not None: self.cbs.after_batch()

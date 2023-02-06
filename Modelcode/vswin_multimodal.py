@@ -561,6 +561,7 @@ class SwinTransformer3D(nn.Module):
                  temporal_pool = 'cls',
                  temporal_heads = [3,3],
                  final_actv=None,
+                 transfer_learning=False,
                  logger=None):
         super().__init__()
 
@@ -574,6 +575,8 @@ class SwinTransformer3D(nn.Module):
         self.patch_size = patch_size
         self.global_avg = global_pool == 'avg'
         self.final_actv = final_actv
+        self.temporal_heads = temporal_heads
+        self.transfer_learning = transfer_learning
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed3D(
@@ -637,10 +640,7 @@ class SwinTransformer3D(nn.Module):
 
     def reset_classifier(self, num_classes: int, global_pool=None):
         self.num_classes = num_classes
-        if self.global_pool is not None:
-            assert global_pool in ('', 'avg', 'token')
-            self.global_pool = global_pool
-        self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+        self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
@@ -653,10 +653,17 @@ class SwinTransformer3D(nn.Module):
             for i in range(0, self.frozen_stages):
                 m = self.layers[i]
                 m.eval()
-            for name, param in zip(self.state_dict().keys(), m.parameters()):
-                if 'relative' in name:
-                    continue
-                param.requires_grad = False
+                for name, param in zip(self.state_dict().keys(), m.parameters()):
+                    if 'relative' in name:
+                        continue
+                    param.requires_grad = False
+            if self.transfer_learning:
+                self.layer_temporal.eval()
+                for i in range(0, len(self.layer_temporal)):
+                    m = self.layer_temporal[i]
+                    m.eval()
+                    for name, param in zip(self.state_dict().keys(), m.parameters()):
+                        param.requires_grad = False
 
     def _unfreeze_stages(self):
         if self.frozen_stages >= 0:
@@ -670,6 +677,12 @@ class SwinTransformer3D(nn.Module):
                 m = self.layers[i]
                 m.eval()
                 for param in m.parameters():
+                    param.requires_grad = True
+            self.layer_temporal.eval()
+            for i in range(0, len(self.layer_temporal)):
+                m = self.layer_temporal[i]
+                m.eval()
+                for name, param in zip(self.state_dict().keys(), m.parameters()):
                     param.requires_grad = True
 
     def _unfreeze_block(self, i):

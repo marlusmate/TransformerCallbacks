@@ -475,6 +475,13 @@ class VisionTransformer3D(nn.Module):
                 m.eval()
                 for param in m.parameters():
                     param.requires_grad = False 
+        if self.transfer_learning:
+                self.blocks_temp.eval()
+                for i in range(0, len(self.blocks_temp)):
+                    m = self.blocks_temp[i]
+                    m.eval()
+                    for name, param in zip(self.state_dict().keys(), m.parameters()):
+                        param.requires_grad = False
 
     def _unfreeze_stages(self):
         if self.frozen_stages >= 0:
@@ -488,7 +495,14 @@ class VisionTransformer3D(nn.Module):
                 m = self.blocks[i]
                 m.eval()
                 for param in m.parameters():
-                    param.requires_grad = True        
+                    param.requires_grad = True   
+        if self.transfer_learning:
+                self.blocks_temp.eval()
+                for i in range(0, len(self.blocks_temp)):
+                    m = self.blocks_temp[i]
+                    m.eval()
+                    for name, param in zip(self.state_dict().keys(), m.parameters()):
+                        param.requires_grad = True     
 
     def _init_weights(self, m):
         # this fn left here for compat with downstream users

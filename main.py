@@ -70,6 +70,7 @@ else:
     # Transfer Learning model
     pretrained_dir = config["pretraineddir"]
     model = load(pretrained_dir)
+    model.transfer_learning = True
     if config["reset_head"]: model.reset_classifier(num_classes=3)
     elif config["overhead"]: 
         model.head = nn.Sequential(
