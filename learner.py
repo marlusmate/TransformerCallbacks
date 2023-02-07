@@ -425,7 +425,7 @@ class Learner:
                     # Append
                     temp_dict["acc"] = self.acc
                     temp_dict["f1"] = f1
-                    temp_dict["recall"] self.recall
+                    temp_dict["recall"] = self.recall
 
         # Visualize
         colorstyle = ["b", 'g']
