@@ -1,14 +1,14 @@
-'model_name' : 'vivit-tiny-patch16-224'
+'model_name' : 'vswin-tiny-patch4-window7-224'
 'fldir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take1", "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take2"]
 'test_dir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed_Test"]
 'epochs_total': 15
-'epochs_froozen': 15
+'epochs_froozen': 10
 'n_inst': 
 'n_inst_percentage': 100
 'train_inst' : 600
 'val_sz': 0.75
 'seq_len': 4
-'batch_size': 21
+'batch_size': 7
 'base_lr' : 0.0001
 'min_lr': 0.00000025
 'warmup_lr': 0.00000025
@@ -17,15 +17,15 @@
 'drop_rate' : 0.3
 'attn_drop_rate' : 0.2
 'drop_path_rate' : 0.1
-'patch_size' : [1,16,16]
+'patch_size' : [1,4,4]
 'window_size' : [2,7,7]
 
-'Model': vivit-tiny-patch16-224
+'Model': 'vswin-tiny-patch4-window7-224'
 'TrainType': SelfsupervisedLearning
 'Problem' : classification
-'SpatialWeights': 'pretrained'
+'SpatialWeights': pretrained
 'TemporalWeights': scratch
-'TrainSpatial': False
+'TrainSpatial': True
 'TrainTemporal': True
 'TrainHead': True
 'Seeds': [0]
@@ -35,16 +35,16 @@
 'pretrained' : ''
 'pretraineddir' : 'Models/vivit-tiny-patch16-224_finetune_pv/model_callback_decent'
 'PVs': 2
-'min_val_loss' : 0.65
+'min_val_loss' : 0.8
 'min_delta_loss': 0.09
 'patience': 10
 'pretrained_dir':
 'num_classes' : 3
-'final_actv' :  softmax #{relu, soft, }
+'final_actv' :  soft #{relu, soft, }
 'loss' :  cross # {cross, huber}
 'transfer_learning' : False
 'pv_learning' : False
-'reset_head' : False
+'reset_head' : True
 'overhead' : False
 'fine_tune' : True
 'opt' : fastai # {cos, fastai}

@@ -489,14 +489,14 @@ class VisionTransformer3D(nn.Module):
             for param in self.patch_embed.parameters():
                 param.requires_grad = True
 
-        if self.frozen_stages >= 1:
+        if self.frozen_stages >= 1 and self.train_spatial:
             self.pos_drop.eval()
             for i in range(0, self.frozen_stages):
                 m = self.blocks[i]
                 m.eval()
                 for param in m.parameters():
-                    param.requires_grad = True   
-        if self.transfer_learning:
+                    param.requires_grad = True  
+        if self.transfer_learning and self.train_temporal:
                 self.blocks_temp.eval()
                 for i in range(0, len(self.blocks_temp)):
                     m = self.blocks_temp[i]

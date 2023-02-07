@@ -53,11 +53,13 @@ class Learner:
             self.counter = 0
             print("Early stopping counter set to: ", self.counter)
             if self.epoch_val_accuracy > self.last_acc:
-                save(self.model, self.callback_dir+"/model_callback")
+                save(self.model, self.callback_dir+"/Model" + "_" + str(self.config["n_inst_percentage"])+ "_" +"model_callback")
+                mlflow.log_artifact(self.callback_dir+"/Model" + "_" + str(self.config["n_inst_percentage"])+ "_" +"model_callback", artifact_path="SavedModel")
                 self.last_acc = self.epoch_val_accuracy
                 print("Callback Model gespeichert, acc: ", self.epoch_val_accuracy)
             else:
-                save(self.model, self.callback_dir+"/model_callback")
+                save(self.model, self.callback_dir+"/Model" + "_" + str(self.config["n_inst_percentage"])+ "_" +"model_callback")
+                mlflow.log_artifact(self.callback_dir+"/Model" + "_" + str(self.config["n_inst_percentage"])+ "_" +"model_callback", artifact_path="SavedModel")
                 print("Callback Model gespeichert, loss: ", validation_loss)
             self.callback_set = True
             self.last_loss = validation_loss
@@ -152,7 +154,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[2]#[:,:,:self.config["PVs"]].mean(dim=1)
+        self.yb= data[2] #[:,:,:self.config["PVs"]].mean(dim=1)
         if self.cbs is not None: self.cbs.before_batch() 
         self._do_one_batch()
         if self.cbs is not None: self.cbs.after_batch()

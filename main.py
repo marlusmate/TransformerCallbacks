@@ -6,7 +6,7 @@ from Modelcode.vivit import VisionTransformer3D
 from Data import build_loader, load_yaml, dump_json
 #import pytorch_lightning as pl
 import torch.nn as nn
-from torch import device, cuda, optim, load
+from torch import device, cuda, optim, load, save
 from callbacks import *
 from learner import Learner
 from fastai.optimizer import OptimWrapper, Optimizer
@@ -86,7 +86,8 @@ else:
         model.overhead=True
     model.to(train_device)
 
-
+model.train_spatial = config["TrainSpatial"]
+model.train_temporal = config["TrainTemporal"]
 train_loader, _, _, inst_dist1 = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, 
     bs=config["batch_size"], device=train_device, train_sz=0.99, fldir=config["fldir"], n_inst_percentage=config["n_inst_percentage"])
 test_loader, val_loader, _, inst_dist2 = build_loader(bs=1,train_sz=config["val_sz"], val_sz=0.99, fldir=config["test_dir"], n_inst=config["train_inst"], seq_len=config["seq_len"], seq=config["seq_len"]>0)
@@ -150,4 +151,4 @@ with mlflow.start_run(run_name=config["TrainType"], nested=True) as train_type:
             learner.test(test_loader)
     
 mlflow.end_run()
-#learner.save_model()
+save(learner.model, 'Models/vivit_pretrained_finetuned')

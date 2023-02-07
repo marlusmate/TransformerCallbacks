@@ -657,13 +657,13 @@ class SwinTransformer3D(nn.Module):
                     if 'relative' in name:
                         continue
                     param.requires_grad = False
-            if self.transfer_learning:
-                self.layer_temporal.eval()
-                for i in range(0, len(self.layer_temporal)):
-                    m = self.layer_temporal[i]
-                    m.eval()
-                    for name, param in zip(self.state_dict().keys(), m.parameters()):
-                        param.requires_grad = False
+        if self.transfer_learning:
+            self.layer_temporal.eval()
+            for i in range(0, len(self.layer_temporal)):
+                m = self.layer_temporal[i]
+                m.eval()
+                for name, param in zip(self.state_dict().keys(), m.parameters()):
+                    param.requires_grad = False
 
     def _unfreeze_stages(self):
         if self.frozen_stages >= 0:
@@ -671,13 +671,14 @@ class SwinTransformer3D(nn.Module):
             for param in self.patch_embed.parameters():
                 param.requires_grad = True
 
-        if self.frozen_stages >= 1:
+        if self.frozen_stages >= 1 and self.train_spatial:
             self.pos_drop.eval()
             for i in range(0, self.frozen_stages):
                 m = self.layers[i]
                 m.eval()
                 for param in m.parameters():
                     param.requires_grad = True
+        if self.transfer_learning and self.transfer_learning:
             self.layer_temporal.eval()
             for i in range(0, len(self.layer_temporal)):
                 m = self.layer_temporal[i]
