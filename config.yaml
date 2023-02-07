@@ -1,13 +1,13 @@
-'model_name' : 'vswin-tiny-patch4-window7-224_finetune_pv_transfer'
+'model_name' : 'vivit-tiny-patch16-224_finetune'
 'fldir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take1", "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take2"]
 'test_dir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed_Test"]
 'epochs_total': 15
-'epochs_froozen': 3
+'epochs_froozen': 15
 'n_inst': 
 'train_inst' : 500
 'val_sz': 0.75
 'seq_len': 4
-'batch_size': 7
+'batch_size': 21
 'base_lr' : 0.0001
 'min_lr': 0.00000025
 'warmup_lr': 0.00000025
@@ -16,17 +16,17 @@
 'drop_rate' : 0.3
 'attn_drop_rate' : 0.2
 'drop_path_rate' : 0.1
-'patch_size' : [1,4,4]
+'patch_size' : [1,16,16]
 'window_size' : [2,7,7]
 'tags' : {
-    'Model': 'vswin-tiny-patch4-window7-224_finetune_pv_transfer',
-    'Type': 'Selfsupervised-TransferLearning',
+    'Model': 'vivit-tiny-patch16-224_finetune',
+    'Type': 'Selfsupervised-FineTuning',
     'Seeds': [0]
 }
 'eval_dir' : "Evaluation"
 'seed' : 0
 'pretrained' : ''
-'pretraineddir' : 'Models/vswin-tiny-patch4-window7-224_finetune_pv/model_callback'
+'pretraineddir' : 'Models/vivit-tiny-patch16-224_finetune_pv/model_callback_decent'
 'PVs': 2
 'min_val_loss' : 0.3
 'min_delta_loss': 0.09
@@ -35,9 +35,9 @@
 'num_classes' : 3
 'final_actv' :  softmax #{relu, soft, }
 'loss' :  cross # {cross, huber}
-'transfer_learning' : True
+'transfer_learning' : False
 'pv_learning' : False
-'reset_head' : True
+'reset_head' : False
 'overhead' : False
 'fine_tune' : True
 'opt' : fastai # {cos, fastai}

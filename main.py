@@ -63,7 +63,7 @@ if not config["transfer_learning"] and not config["testonly"]:
             attn_drop_rate=config["attn_drop_rate"],
             final_actv=config["final_actv"],
         ).to(train_device)
-
+    model.transfer_learning = False
 elif config["testonly"]:
     model = load(config["pretraineddir"])
 else:
@@ -90,7 +90,7 @@ else:
 train_loader, _, _, inst_dist1 = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, 
     bs=config["batch_size"], device=train_device, train_sz=0.99, fldir=config["fldir"])
 test_loader, val_loader, _, inst_dist2 = build_loader(bs=1,train_sz=config["val_sz"], val_sz=0.99, fldir=config["test_dir"], n_inst=config["train_inst"], seq_len=config["seq_len"], seq=config["seq_len"]>0)
-inst_dist = {'Training': inst_dist1['Training'], 'Validation': inst_dist2['Training'], 'Testing': inst_dist2['Validation']}
+inst_dist = {'Training': inst_dist1['Training'], 'Validation': inst_dist2['Validation'], 'Testing': inst_dist2['Training']}
 dump_json(inst_dist, dest=os.path.join(config["eval_dir"], config["model_name"])+'/InstanceDistribution.json')
 print("IntsanceDistribution saved")
 
