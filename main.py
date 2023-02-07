@@ -88,7 +88,7 @@ else:
 
 
 train_loader, _, _, inst_dist1 = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, 
-    bs=config["batch_size"], device=train_device, train_sz=0.99, fldir=config["fldir"])
+    bs=config["batch_size"], device=train_device, train_sz=0.99, fldir=config["fldir"], n_inst_percentage=config["n_inst_percentage"])
 test_loader, val_loader, _, inst_dist2 = build_loader(bs=1,train_sz=config["val_sz"], val_sz=0.99, fldir=config["test_dir"], n_inst=config["train_inst"], seq_len=config["seq_len"], seq=config["seq_len"]>0)
 inst_dist = {'Training': inst_dist1['Training'], 'Validation': inst_dist2['Validation'], 'Testing': inst_dist2['Training']}
 dump_json(inst_dist, dest=os.path.join(config["eval_dir"], config["model_name"])+'/InstanceDistribution.json')
@@ -121,29 +121,33 @@ learner = Learner(config, model, loss, train_loader, val_loader, opt_func, opt=o
 
 # Training
 mlflow.end_run()
-mlflow.set_experiment("Markus_Transformer")
-with mlflow.start_run(run_name=config["model_name"]):
-    mlflow.set_tags(config['tags'])
-    mlflow.log_metrics(dict(zip(['0', '1', '2'],we_target.cpu().numpy())))
-    print("Loss weights to counter imbalanced data set: ", we_target)
-    mlflow.log_artifact("config.yaml", artifact_path=config["model_name"])
-    mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"])+'/InstanceDistribution.json', artifact_path=config["model_name"])
-    if config["testonly"]:
-        learner.test(test_loader) if not config["pv_learning"] else learner.test_pv(test_loader)
+mlflow.set_experiment(config["model_name"])
+with mlflow.start_run(run_name=config["tags"]["TrainType"], nested=True) as train_type:
+    with mlflow.start_run(run_name="InstancesUsed"+str(config["n_inst_percentage"]), nested=True) as instdist:
 
-    elif config["pv_learning"]:
-        learner.loss_we = [1]
-        if not config["fine_tune"]:
-            learner.pv_learn(config["epochs_total"], params=config["PVs"], n_iter=train_loader.__len__(), loss_we=[1]) 
-        else:
+        mlflow.log_params(config)
+
+        mlflow.set_tags(config['tags'])
+        mlflow.log_metrics(dict(zip(['0', '1', '2'],we_target.cpu().numpy())))
+        print("Loss weights to counter imbalanced data set: ", we_target)
+        mlflow.log_artifact("config.yaml", artifact_path=config["model_name"])
+        mlflow.log_artifact(os.path.join(config["eval_dir"], config["model_name"])+'/InstanceDistribution.json', artifact_path=config["model_name"])
+        if config["testonly"]:
+            learner.test(test_loader) if not config["pv_learning"] else learner.test_pv(test_loader)
+
+        elif config["pv_learning"]:
+            learner.loss_we = [1]
+            if not config["fine_tune"]:
+                learner.pv_learn(config["epochs_total"], params=config["PVs"], n_iter=train_loader.__len__(), loss_we=[1]) 
+            else:
+                learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=config["base_lr"])
+            learner.test_pv(test_loader)
+        elif config["fine_tune"]:
             learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=config["base_lr"])
-        learner.test_pv(test_loader)
-    elif config["fine_tune"]:
-        learner.fine_tune(config["epochs_total"],config["epochs_froozen"], train_loader.__len__(), base_lr=config["base_lr"])
-        learner.test(test_loader)
-    else:
-        learner.fit_one_cycle(epochs=config["epochs_total"], n_iter=train_loader.__len__(), lr_max=config["base_lr"])
-        learner.test(test_loader)
+            learner.test(test_loader)
+        else:
+            learner.fit_one_cycle(epochs=config["epochs_total"], n_iter=train_loader.__len__(), lr_max=config["base_lr"])
+            learner.test(test_loader)
     
 mlflow.end_run()
-learner.save_model()
+#learner.save_model()

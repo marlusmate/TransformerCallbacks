@@ -118,10 +118,10 @@ def tensor_transform():
 
 
 
-def build_loader(fl=None, lb=None, bs=51, train_sz=.8, val_sz=.7, seed=0, transform=tensor_transform, seq=False, device='cuda', fldir="/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/", seq_len=0, n_inst=3000):
+def build_loader(fl=None, lb=None, bs=51, train_sz=.8, val_sz=.7, seed=0, transform=tensor_transform, seq=False, device='cuda', fldir="/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/", seq_len=0, n_inst=3000, n_inst_percentage=100):
     if fl is None and lb is None:
         fl, lb = get_multimodal_sequence_paths(file_dirs=fldir, seq_len=seq_len)
-        fl, lb = shuffle_and_dist_mml(fl, lb, n_inst=n_inst, seed=seed)
+        fl, lb = shuffle_and_dist_mml(fl, lb, n_inst=n_inst, seed=seed, n_inst_per=n_inst_percentage)
     
     # Seed dependet Data Split
     files_train, files_val_test, train_labels, val_labels_test = train_test_split(fl, lb, train_size=train_sz, random_state=seed)
@@ -179,9 +179,10 @@ def get_multimodal_data_paths(file_dirs: list):
             data_paths.append((img_path, par_path))            
     return data_paths, label_list
 
-def shuffle_and_dist_mml(data_paths, labels, n_inst=None, seed=24):
+def shuffle_and_dist_mml(data_paths, labels, n_inst=None, seed=24, n_inst_per=100):
     if n_inst is None:
         n_inst = min([labels.count(lb) for lb in set(labels)])
+    n_inst = n_inst * (n_inst_per/100)
     shuffled_paths, s_labels = [[], []]
     # joint shuffleing
     random.seed(seed)

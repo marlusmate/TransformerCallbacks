@@ -193,8 +193,8 @@ class Learner:
             self._do_epoch()
             if self.early_stop(self.epoch_val_loss):
                 break
-
         if self.cbs is not None: self.cbs.after_fit()
+        #mlflow.log_model(self.model)
 
     def fit(self, epochs, cbs):
         if cbs is not None: cbs.learn = self
@@ -202,6 +202,7 @@ class Learner:
         #self.opt 
         self.epochs =epochs
         self._do_fit()
+        
         
     def fit_one_cycle(self, epochs, n_iter, lr_max=None, div=25., div_final=1e5, pct_start=.25, moms=(0.95,0.85,0.95)):
         #if not self.cb.begin_fit(): return
@@ -245,23 +246,24 @@ class Learner:
             print("Model Callback loaded")
         self._do_epoch_validate(dl=dls_test)
         self.seed = self.config["tags"]["Seeds"][0]
+        mlflow.log_metrics(dict(zip(["Accuracy", "Loss"],[float(self.epoch_val_accuracy.cpu().detach()), float(self.epoch_loss.cpu().detach())])))
         
         import matplotlib.pyplot as plt
         from seaborn import heatmap
-        from sklearn.metrics import confusion_matrix, f1_score, roc_auc_score, roc_curve
+        from sklearn.metrics import confusion_matrix, f1_score, roc_auc_score, roc_curve, recall_score
         from torch.nn.functional import one_hot
         import os
 
         # Confusion Matrix
         cf = confusion_matrix(np.asarray(self.labels), np.asarray(self.predscl))
         figcf, ax_cf = plt.subplots()
-        ax_cf.set_title("Confusion Matrix " + self.config["model_name"])
+        ax_cf.set_title("Confusion Matrix " + self.config["model_name"] + "_" + str(self.config["n_inst_percentage"]))
         ax_cf = heatmap(cf, annot=True, cmap="Blues", yticklabels=3, xticklabels=3)
         ax_cf.set_ylabel("True Class")
         ax_cf.set_xlabel("Predicted Class ")
-        figcf.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"],"ConfusionMatrix_"+str(self.seed)))
+        figcf.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"],("ConfusionMatrix_"+str(self.seed)+ "_" + str(self.config["n_inst_percentage"]))))
         mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], 
-            "ConfusionMatrix_"+str(self.seed)+".png"), artifact_path=self.config["model_name"])
+            "ConfusionMatrix_"+str(self.seed) + "_" + str(self.config["n_inst_percentage"]) +".png"), artifact_path=self.config["model_name"])
         
         # Calc ROC, AUC
         self.labelsoh = one_hot(tensor(np.array(self.labels)), num_classes=3).squeeze(1)
@@ -273,6 +275,8 @@ class Learner:
         auc_1 = roc_auc_score(self.labelsoh[:,1], self.preds[:,1])
         auc_2 = roc_auc_score(self.labelsoh[:,2], self.preds[:,2])
         auc = mean(tensor((auc_0, auc_1, auc_2))).numpy()
+        mlflow.log_metrics(dict(zip(["auc","auc0", "auc1", "auc2"],[float(auc), float(auc_0), float(auc_1), float(auc_2)])))
+        #mlflow.log_metrics(dict(zip(["auc","auc0", "auc1", "auc2"],[auc, auc_0, auc_1, auc_2])))
 
         # Plot ROC
         figroc, axroc = plt.subplots()
@@ -282,8 +286,8 @@ class Learner:
         axroc.plot([0,1],[0,1], 'k--')
         axroc.set(title="ROC - " + self.config["model_name"], xlabel="False Positive Rate", ylabel="True Negative Rate")
         axroc.legend()
-        figroc.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"], "ROC_"+self.config["model_name"]))
-        mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], "ROC_"+self.config["model_name"]+".png"), artifact_path=self.config["model_name"])
+        figroc.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"], "ROC_"+self.config["model_name"]+ "_" + str(self.config["n_inst_percentage"])))
+        mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], "ROC_"+ self.config["model_name"]+ "_" + str(self.config["n_inst_percentage"]) +".png"), artifact_path=self.config["model_name"])
 
         # F1 Score
         self.predsoh=one_hot(tensor(self.predscl), num_classes=3).squeeze(1)
@@ -291,7 +295,12 @@ class Learner:
         f1_0 = f1_score(self.labelsoh[:,0], self.predsoh[:,0])
         f1_1 = f1_score(self.labelsoh[:,1], self.predsoh[:,1])
         f1_2 = f1_score(self.labelsoh[:,2], self.predsoh[:,2])
-
+        mlflow.log_metrics(dict(zip(["f1","f1_0", "f1_1", "f1_2"],[f1, f1_0, f1_1, f1_2])))
+        
+        # Recall
+        recalls = [recall_score(self.labels, self.predscl, average="weighted")]
+        recalls.extend([recall_score(self.labels, self.predsoh[:,i], average="weighted") for i in range(3)])
+        mlflow.log_metrics(dict(zip(["recall", "recall_0", "recall_1", "recall_2" ], recalls)))
 
         # Create Metrics Sheet
         metrics = {'F1-Score': f1, 'AUC': float(auc), 
@@ -301,10 +310,11 @@ class Learner:
 
         dump_json(metrics, os.path.join(self.config["eval_dir"], self.config["model_name"], "Metrics_"+self.config["model_name"]+".json"))
         mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], f"Metrics_"+self.config["model_name"]+".json"), artifact_path=self.config["model_name"])
-
+        self.save_model()
+        mlflow.log_artifact(self.callback_dir+"/Model" + "_" + str(self.config["n_inst_percentage"]), artifact_path="SavedModel")
 
     def save_model(self):
-        save(self.model, self.callback_dir+"/Model")
+        save(self.model, self.callback_dir+"/Model" + "_" + str(self.config["n_inst_percentage"]))
         print("Model abgespeichert")
 
     def test_pv(self, dls_test):
@@ -330,7 +340,8 @@ class Learner:
         mae_rpm = mae(label_rpm,pred_rpm)
         mae_gfl = mae(label_gfl,pred_gfl)
         #mae_tem = mae(label_temp,pred_temp)
-        maes = {'rpm': mae_rpm, 'gfl': mae_gfl}#, 'temp': mae_tem}
+        maes = {'mae_rpm': mae_rpm, 'mae_gfl': mae_gfl}#, 'temp': mae_tem}
+        mlflow.log_metrics(maes)
 
         f1 = plt.bar(list(maes.keys()), list(maes.values()))
         plt.ylabel("MAE")

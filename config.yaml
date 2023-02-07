@@ -1,10 +1,11 @@
-'model_name' : 'vivit-tiny-patch16-224_finetune'
+'model_name' : 'vivit-tiny-patch16-224'
 'fldir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take1", "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take2"]
 'test_dir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed_Test"]
 'epochs_total': 15
 'epochs_froozen': 15
 'n_inst': 
-'train_inst' : 500
+'n_inst_percentage': 100
+'train_inst' : 600
 'val_sz': 0.75
 'seq_len': 4
 'batch_size': 21
@@ -19,8 +20,14 @@
 'patch_size' : [1,16,16]
 'window_size' : [2,7,7]
 'tags' : {
-    'Model': 'vivit-tiny-patch16-224_finetune',
-    'Type': 'Selfsupervised-FineTuning',
+    'Model': 'vivit-tiny-patch16-224',
+    'TrainType': 'SelfsupervisedLearning',
+    'Problem' : classification,
+    'SpatialWeights': 'pretrained',
+    'TemporalWeights': scratch,
+    'TrainSpatial': False,
+    'TrainTemporal': True,
+    'TrainHead': True,
     'Seeds': [0]
 }
 'eval_dir' : "Evaluation"
@@ -28,7 +35,7 @@
 'pretrained' : ''
 'pretraineddir' : 'Models/vivit-tiny-patch16-224_finetune_pv/model_callback_decent'
 'PVs': 2
-'min_val_loss' : 0.3
+'min_val_loss' : 0.65
 'min_delta_loss': 0.09
 'patience': 10
 'pretrained_dir':
