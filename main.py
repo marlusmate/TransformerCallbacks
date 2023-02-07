@@ -122,12 +122,12 @@ learner = Learner(config, model, loss, train_loader, val_loader, opt_func, opt=o
 # Training
 mlflow.end_run()
 mlflow.set_experiment(config["model_name"])
-with mlflow.start_run(run_name=config["tags"]["TrainType"], nested=True) as train_type:
+with mlflow.start_run(run_name=config["TrainType"], nested=True) as train_type:
     with mlflow.start_run(run_name="InstancesUsed"+str(config["n_inst_percentage"]), nested=True) as instdist:
 
         mlflow.log_params(config)
 
-        mlflow.set_tags(config['tags'])
+        #mlflow.set_tags(config['tags'])
         mlflow.log_metrics(dict(zip(['0', '1', '2'],we_target.cpu().numpy())))
         print("Loss weights to counter imbalanced data set: ", we_target)
         mlflow.log_artifact("config.yaml", artifact_path=config["model_name"])
