@@ -245,7 +245,7 @@ class Learner:
             self.model = load(self.callback_dir+"/model_callback")
             print("Model Callback loaded")
         self._do_epoch_validate(dl=dls_test)
-        self.seed = self.config["tags"]["Seeds"][0]
+        self.seed = self.config["Seeds"][0]
         mlflow.log_metrics(dict(zip(["Accuracy", "Loss"],[float(self.epoch_val_accuracy.cpu().detach()), float(self.epoch_loss.cpu().detach())])))
         
         import matplotlib.pyplot as plt
@@ -324,7 +324,7 @@ class Learner:
         self._do_epoch_validate(dl=dls_test)
         self.preds = np.array(self.preds)
         self.labels = np.array(self.labels)
-        self.seed = self.config["tags"]["Seeds"][0]
+        self.seed = self.config["Seeds"][0]
         # PVP
         #mae
         from sklearn.metrics import mean_absolute_error as mae
