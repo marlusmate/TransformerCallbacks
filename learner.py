@@ -380,3 +380,81 @@ class Learner:
         mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], 
             "Scatterplot_PVP_"+str(self.config["seed"])+".png"), artifact_path=self.config["model_name"])
         plt.close()
+
+    def compare_models(self, test_loader, grouping_names, inst_dist):
+        import matplotlib.pyplot as plt
+        from seaborn import heatmap
+        from sklearn.metrics import confusion_matrix, f1_score, roc_auc_score, roc_curve, accuracy_score, recall_score
+        from torch.nn.functional import one_hot
+        import os
+
+        # Predictions
+        self.all_dict= dict.fromkeys(grouping_names)
+        for mtypes in grouping_names:
+            self.preds_mt = dict.fromkeys(mtypes)
+            for mtype, n_inst in zip(mtypes, inst_dist):
+                self.model = load("Models/"+mtype+"/model_callback")
+                self.epoch_val_accuracy, self.epoch_val_loss = 0.,0.
+                self.preds, self.predscl, self.labels = [], [], []
+                self.testing = True
+                self._do_epoch_validate(dl=test_loader)
+                self.seed = self.config["tags"]["Seeds"][0]
+                keys = ["preds", "predcl", "label", "n_inst"]
+                temp_dict = dict(zip(keys, [self.preds, self.predscl, self.labels, n_inst]))
+                self.preds_mt[mtype][n_inst] = temp_dict
+            self.all_dict[mtypes] = self.preds_mt
+            
+
+        # Numerical Metrics; Acc, Recall, F1, Errorrate
+        for mtypes in self.all_dict.keys():
+            for mt in mtypes.keys():
+                for ninst in mt.keys():
+                    temp_dict = self.all_dict[mtypes][mt][ninst]
+                    predsoh =one_hot(tensor(temp_dict["predcl"]), num_classes=3).squeeze(1)
+                    labelsoh = one_hot(tensor(np.array(temp_dict["labels"])), num_classes=3).squeeze(1)
+                    # F1 Score                
+                    f1 = f1_score(np.asarray(temp_dict["label"]), np.asarray(temp_dict["predcl"]), average='weighted')
+                    f1_0 = f1_score(labelsoh[:,0], predsoh[:,0])
+                    f1_1 = f1_score(labelsoh[:,1], predsoh[:,1])
+                    f1_2 = f1_score(labelsoh[:,2], predsoh[:,2])
+
+                    # Accuracy
+                    self.acc = accuracy_score(temp_dict["label"], temp_dict["predcl"])
+
+                    # Recall
+                    self.recall = recall_score(temp_dict["label"], temp_dict["predcl"])
+
+                    # Calc ROC, AUC
+                    
+                    preds = tensor(temp_dict["pred"]).squeeze(1)
+                    fpr_0, tpr_0, thresholds_0 = roc_curve(labelsoh[:,0].numpy(), preds[:,0].numpy())
+                    fpr_1, tpr_1, thresholds_1 = roc_curve(labelsoh[:,1], preds[:,1])
+                    fpr_2, tpr_2, thresholds_2 = roc_curve(labelsoh[:,2], preds[:,2])
+                    auc_0 = roc_auc_score(labelsoh[:,0], preds[:,0])
+                    auc_1 = roc_auc_score(labelsoh[:,1], preds[:,1])
+                    auc_2 = roc_auc_score(labelsoh[:,2], preds[:,2])
+                    auc = mean(tensor((auc_0, auc_1, auc_2))).numpy()
+
+                    # Append
+                    temp_dict["acc"] = self.acc
+                    temp_dict["f1"] = f1
+                    temp_dict["recall"] = self.recall
+
+        # Visualize
+        colorstyle = ["b", 'g']
+        linestyle = ["dotted", "dashed", "dashdot"]
+        
+        
+
+        # Plot ROC
+        figroc, axroc = plt.subplots()
+        axroc.plot(fpr_0, tpr_0, label="flooded")
+        axroc.plot(fpr_1, tpr_1, label="loaded")
+        axroc.plot(fpr_2, tpr_2, label="dispersed")
+        axroc.plot([0,1],[0,1], 'k--')
+        axroc.set(title="ROC - " + self.config["model_name"], xlabel="False Positive Rate", ylabel="True Negative Rate")
+        axroc.legend()
+        figroc.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"], "ROC_"+self.config["model_name"]))
+        mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], "ROC_"+self.config["model_name"]+".png"), artifact_path=self.config["model_name"])
+
+        
