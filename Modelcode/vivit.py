@@ -475,6 +475,7 @@ class VisionTransformer3D(nn.Module):
                 m.eval()
                 for param in m.parameters():
                     param.requires_grad = False 
+        """
         if self.transfer_learning:
                 self.blocks_temp.eval()
                 for i in range(0, len(self.blocks_temp)):
@@ -482,21 +483,23 @@ class VisionTransformer3D(nn.Module):
                     m.eval()
                     for name, param in zip(self.state_dict().keys(), m.parameters()):
                         param.requires_grad = False
+        """
 
     def _unfreeze_stages(self):
-        if self.frozen_stages >= 0:
+        if self.train_embed:
             self.patch_embed.eval()
             for param in self.patch_embed.parameters():
                 param.requires_grad = True
 
-        if self.frozen_stages >= 1 and self.train_spatial:
+        if self.train_spatial:
             self.pos_drop.eval()
             for i in range(0, self.frozen_stages):
                 m = self.blocks[i]
                 m.eval()
                 for param in m.parameters():
                     param.requires_grad = True  
-        if self.transfer_learning and self.train_temporal:
+    
+        if self.train_temporal:
                 self.blocks_temp.eval()
                 for i in range(0, len(self.blocks_temp)):
                     m = self.blocks_temp[i]

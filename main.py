@@ -86,6 +86,7 @@ else:
         model.overhead=True
     model.to(train_device)
 
+model.train_embed = config["TrainEmbed"]
 model.train_spatial = config["TrainSpatial"]
 model.train_temporal = config["TrainTemporal"]
 train_loader, _, _, inst_dist1 = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, 

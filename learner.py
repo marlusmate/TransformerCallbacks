@@ -244,7 +244,7 @@ class Learner:
         self.preds, self.predscl, self.labels = [], [], []
         self.testing = True
         if self.callback_set:
-            self.model = load(self.callback_dir+"/model_callback")
+            self.model = load(self.callback_dir+"/Model" + "_" + str(self.config["n_inst_percentage"])+ "_" +"model_callback")
             print("Model Callback loaded")
         self._do_epoch_validate(dl=dls_test)
         self.seed = self.config["Seeds"][0]
