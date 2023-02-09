@@ -125,7 +125,10 @@ def build_loader(fl=None, lb=None, bs=51, train_sz=.8, val_sz=.7, seed=0, transf
     
     # Seed dependet Data Split
     files_train, files_val_test, train_labels, val_labels_test = train_test_split(fl, lb, train_size=train_sz, random_state=seed)
-    files_val, files_test, val_labels, test_labels = train_test_split(files_val_test, val_labels_test, train_size=val_sz, random_state=seed)
+    if len(files_val_test) > 1:
+        files_val, files_test, val_labels, test_labels = train_test_split(files_val_test, val_labels_test, train_size=val_sz, random_state=seed)
+    else: 
+        files_val, files_test, val_labels, test_labels = [],[],[],[]
 
     # Get Instance distribution
     inst_dist = dict()
@@ -139,11 +142,11 @@ def build_loader(fl=None, lb=None, bs=51, train_sz=.8, val_sz=.7, seed=0, transf
     # Build Datasets and corresponding Loaders
     if seq:
         train_data = MultimodalDataset(files_train, train_labels, transform=transform, device=device)
-        val_data = MultimodalDataset(files_val, val_labels, transform=transform, device=device)
-        test_data = MultimodalDataset(files_test, test_labels, transform=transform, device=device)
+        val_data = MultimodalDataset(files_val, val_labels, transform=transform, device=device) if len(files_val) > 0 else None
+        test_data = MultimodalDataset(files_test, test_labels, transform=transform, device=device) if len(files_test) > 0 else None
         train_loader = DataLoader(dataset = train_data, batch_size=bs, shuffle=True)
-        val_loader = DataLoader(dataset=val_data, batch_size=bs, shuffle=True)
-        test_loader = DataLoader(dataset=test_data, batch_size=1)
+        val_loader = DataLoader(dataset=val_data, batch_size=bs, shuffle=True) if val_data is not None else None
+        test_loader = DataLoader(dataset=test_data, batch_size=1) if test_data is not None else None
     else:
         train_data = MultimodalImageDataset(files_train, train_labels, transform=transform, device=device)
         val_data = MultimodalImageDataset(files_val, val_labels, transform=transform, device=device)
