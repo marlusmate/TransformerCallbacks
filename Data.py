@@ -119,6 +119,7 @@ def tensor_transform():
 
 
 def build_loader(fl=None, lb=None, bs=51, train_sz=.8, val_sz=.7, seed=0, transform=tensor_transform, seq=False, device='cuda', fldir="/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/", seq_len=0, n_inst=3000, n_inst_percentage=100):
+    seed=seed[0] if isinstance(seed, list) else seed
     if fl is None and lb is None:
         fl, lb = get_multimodal_sequence_paths(file_dirs=fldir, seq_len=seq_len)
         fl, lb = shuffle_and_dist_mml(fl, lb, n_inst=n_inst, seed=seed, n_inst_per=n_inst_percentage)
