@@ -678,7 +678,8 @@ class SwinTransformer3D(nn.Module):
                 m.eval()
                 for param in m.parameters():
                     param.requires_grad = True
-        if self.transfer_learning and self.transfer_learning:
+
+        if self.transfer_learning:
             self.layer_temporal.eval()
             for i in range(0, len(self.layer_temporal)):
                 m = self.layer_temporal[i]

@@ -111,9 +111,9 @@ class Learner:
             self.epoch_val_accuracy += acc / self.n_iter
             self.epoch_val_loss += self.loss / self.n_iter
         if self.testing:
-            self.preds.append(self.pred.cpu().numpy())
+            self.preds.append(self.pred.cpu()[0].numpy())
             self.predscl.append(self.pred.argmax(dim=1).cpu().numpy())
-            self.labels.append(self.yb.cpu().numpy())
+            self.labels.append(self.yb.cpu()[0].numpy())
 
 
     def all_batches(self):
@@ -154,7 +154,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[2] #[:,:,:self.config["PVs"]].mean(dim=1)
+        self.yb= data[2] #.mean(dim=1) #[:,:,:self.config["PVs"]]
         if self.cbs is not None: self.cbs.before_batch() 
         self._do_one_batch()
         if self.cbs is not None: self.cbs.after_batch()
@@ -369,13 +369,15 @@ class Learner:
         plt.close()
 
         # Scatter plot
-        f, (ax1, ax2) = plt.subplots(1,2, sharey=True)
+        f, (ax1, ax2) = plt.subplots(1,2, sharey=True, sharex=True)
         ax1.plot(label_rpm, pred_rpm, '*')
         ax1.plot([0,1], [0,1], 'k--')
         ax1.set(title="RPM", xlabel='True Value (normed)', ylabel="Pred Value (normed)")
         ax2.plot(label_gfl, pred_gfl, '*')
         ax2.plot([0,1], [0,1], 'k--')
         ax2.set(title="GFL", xlabel='True Value (normed)', ylabel="Pred Value (normed)")
+        ax1.set_aspect('equal')
+        ax2.set_aspect('equal')
         plt.savefig(os.path.join(self.config["eval_dir"], self.config["model_name"], "Scatterplot_PVP_"+str(self.config["seed"])))
         mlflow.log_artifact(os.path.join(self.config["eval_dir"], self.config["model_name"], 
             "Scatterplot_PVP_"+str(self.config["seed"])+".png"), artifact_path=self.config["model_name"])

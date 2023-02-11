@@ -90,8 +90,8 @@ model.train_embed = config["TrainEmbed"]
 model.train_spatial = config["TrainSpatial"]
 model.train_temporal = config["TrainTemporal"]
 train_loader, _, _, inst_dist1 = build_loader(n_inst=config['n_inst'], seq_len=config["seq_len"], seq=config["seq_len"]>0, 
-    bs=config["batch_size"], device=train_device, train_sz=0.99, fldir=config["fldir"], n_inst_percentage=config["n_inst_percentage"])
-test_loader, val_loader, _, inst_dist2 = build_loader(bs=1,train_sz=config["val_sz"], val_sz=0.99, fldir=config["test_dir"], n_inst=config["train_inst"], seq_len=config["seq_len"], seq=config["seq_len"]>0)
+    bs=config["batch_size"], device=train_device, train_sz=0.99, fldir=config["fldir"], n_inst_percentage=config["n_inst_percentage"],seed=config["Seeds"])
+test_loader, val_loader, _, inst_dist2 = build_loader(bs=1,train_sz=config["val_sz"], val_sz=0.99, fldir=config["test_dir"], n_inst=config["train_inst"], seq_len=config["seq_len"], seq=config["seq_len"]>0, seed=config['Seeds'])
 inst_dist = {'Training': inst_dist1['Training'], 'Validation': inst_dist2['Validation'], 'Testing': inst_dist2['Training']}
 dump_json(inst_dist, dest=os.path.join(config["eval_dir"], config["model_name"])+'/InstanceDistribution.json')
 print("IntsanceDistribution saved")
