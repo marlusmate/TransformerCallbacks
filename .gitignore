@@ -7,6 +7,7 @@ lightning logs
 ImageModules/__pycache__
 mlruns
 Models
+LoggedRunsCSV
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
