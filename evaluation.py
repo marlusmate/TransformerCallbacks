@@ -2,8 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Load
-csv_dir_vivit = 'runs_vivit.csv'
-csv_dir_vswin = 'runs_vswin.csv'
+csv_dir_vivit = 'LoggedRunsCSV/runs_vivit.csv'
+csv_dir_vswin = 'LoggedRunsCSV/runs_vswin.csv'
 df_vivit = pd.read_csv(csv_dir_vivit, sep=',', header=0).dropna(subset='auc')
 df_vswin = pd.read_csv(csv_dir_vswin, sep=',', header=0).dropna(subset='auc').sort_values('n_inst_percentage')
 
@@ -21,7 +21,7 @@ ax1.plot(df_vivit_scratch["n_inst_percentage"], df_vivit_scratch["auc"], 'o--')
 ax1.set(title="vivit-tiny-patch16-224", xlabel="Percentage Used Training Labels", ylabel="AUC", xlim=[0,105], ylim=[0,1])
 ax1.grid()
 f1.legend(["Pretrained", "Scratch"])
-f1.savefig("FinalEval/auc_vivit")
+f1.savefig("Evaluation/Comparsion/auc_vivit")
 #f1.show()
 
 
@@ -32,7 +32,7 @@ ax2.plot(df_vivit_scratch["n_inst_percentage"], df_vswin_scratch["Accuracy"], 'o
 ax2.set(title="vswin-tiny-patch4-window7-224", xlabel="Percentage Used Training Labels", ylabel="Accuracy", xlim=[0,105], ylim=[0,1])
 ax2.grid()
 f2.legend(["Pretrained", "Scratch"])
-f2.savefig("FinalEval/acc_vivit")
+f2.savefig("Evaluation/Comparsion/acc_vivit")
 #f2.show()
 
 #F1
@@ -42,7 +42,7 @@ ax3.plot(df_vivit_scratch["n_inst_percentage"], df_vivit_scratch["f1"], 'o--')
 ax3.set(title="vivit-tiny-patch16-224", xlabel="Percentage Used Training Labels", ylabel="F1", xlim=[0,105], ylim=[0,1])
 ax3.grid()
 f3.legend(["Pretrained", "Scratch"])
-f3.savefig("FinalEval/f1_vivit")
+f3.savefig("Evaluation/Comparsion/f1_vivit")
 #f3.show()
 
 
@@ -54,7 +54,7 @@ ax4.plot(df_vswin_scratch["n_inst_percentage"], df_vswin_scratch["auc"], 'o--')
 ax4.set(title="vswin-tiny-patch4-window7-224", xlabel="Percentage Used Training Labels", ylabel="AUC", xlim=[0,105], ylim=[0,1])
 ax4.grid()
 f4.legend(["Pretrained", "Scratch"])
-f4.savefig("FinalEval/auc_vswin")
+f4.savefig("Evaluation/Comparsion/auc_vswin")
 f4.show()
 
 
@@ -65,7 +65,7 @@ ax5.plot(df_vswin_scratch["n_inst_percentage"], df_vswin_scratch["Accuracy"], 'o
 ax5.set(title="vswin-tiny-patch4-window7-224", xlabel="Percentage Used Training Labels", ylabel="Accuracy", xlim=[0,105], ylim=[0,1])
 ax5.grid()
 f5.legend(["Pretrained", "Scratch"])
-f5.savefig("FinalEval/acc_vswin")
+f5.savefig("Evaluation/Comparsion/acc_vswin")
 f5.show()
 
 #F1
@@ -75,7 +75,7 @@ ax6.plot(df_vswin_scratch["n_inst_percentage"], df_vswin_scratch["f1"], 'o--')
 ax6.set(title="vswin-tiny-patch4-window7-224", xlabel="Percentage Used Training Labels", ylabel="F1", xlim=[0,105], ylim=[0,1])
 ax6.grid()
 f6.legend(["Pretrained", "Scratch"])
-f6.savefig("FinalEval/f1_vswin")
+f6.savefig("Evaluation/Comparsion/f1_vswin")
 f6.show()
 
 print("fertsch")

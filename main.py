@@ -1,21 +1,20 @@
 from Modelcode.swin import SwinTransformer
 from Modelcode.vit import VisionTransformer
-from Modelcode.vswin import SwinTransformer3D
 from Modelcode.vswin_multimodal import SwinTransformer3D as MSwinTransformer3D
 from Modelcode.vivit import VisionTransformer3D
-from Data import build_loader, load_yaml, dump_json
-#import pytorch_lightning as pl
+from Data import build_loader
 import torch.nn as nn
 from torch import device, cuda, optim, load, save
 from callbacks import *
 from learner import Learner
-from fastai.optimizer import OptimWrapper, Optimizer
+from fastai.optimizer import OptimWrapper
 from logger import logging
 from model_optimizer import build_adamw
 import os
+import utils as U
 
 # Setup
-config = load_yaml('config.yaml')
+config = U.load_yaml('config.yaml')
 logger = logging.getLogger('vswin_logger')
 train_device = device('cuda:0' if cuda.is_available() else 'cpu')
 callback_dir = os.path.join("Models", config["model_name"])
@@ -93,7 +92,7 @@ train_loader, _, _, inst_dist1 = build_loader(n_inst=config['n_inst'], seq_len=c
     bs=config["batch_size"], device=train_device, train_sz=0.99, fldir=config["fldir"], n_inst_percentage=config["n_inst_percentage"],seed=config["Seeds"])
 test_loader, val_loader, _, inst_dist2 = build_loader(bs=1,train_sz=config["val_sz"], val_sz=0.99, fldir=config["test_dir"], n_inst=config["train_inst"], seq_len=config["seq_len"], seq=config["seq_len"]>0, seed=config['Seeds'])
 inst_dist = {'Training': inst_dist1['Training'], 'Validation': inst_dist2['Validation'], 'Testing': inst_dist2['Training']}
-dump_json(inst_dist, dest=os.path.join(config["eval_dir"], config["model_name"])+'/InstanceDistribution.json')
+U.dump_json(inst_dist, dest=os.path.join(config["eval_dir"], config["model_name"])+'/InstanceDistribution.json')
 print("IntsanceDistribution saved")
 
 # Loss, Optimizer, Dataloader
