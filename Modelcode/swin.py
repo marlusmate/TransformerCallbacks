@@ -1,3 +1,6 @@
+# Copied /adapted from: https://github.com/microsoft/Swin-Transformer/blob/main/models/swin_transformer.py
+# Based on paper: https://arxiv.org/pdf/2103.14030
+
 # --------------------------------------------------------
 # Swin Transformer
 # Copyright (c) 2021 Microsoft
@@ -501,13 +504,29 @@ class SwinTransformer(nn.Module):
         fused_window_process (bool, optional): If True, use one kernel to fused window shift & window partition for acceleration, similar for the reversed part. Default: False
     """
 
-    def __init__(self, img_size=224, patch_size=4, in_chans=1, num_classes=3,
-                 embed_dim=96, depths=[2, 2, 6, 2], num_heads=[3, 6, 12, 24],
-                 window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
-                 drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
-                 norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 pretrained="Dictionaries/swin-tiny-patch4-window7-224.bin", load_weights='', frozen_stages=4,
-                 use_checkpoint=False, fused_window_process=False, 
+    def __init__(self, 
+                 img_size=224, 
+                 patch_size=4,
+                 in_chans=1, 
+                 num_classes=3,
+                 embed_dim=96, 
+                 depths=[2, 2, 6, 2], 
+                 num_heads=[3, 6, 12, 24],
+                 window_size=7, 
+                 mlp_ratio=4.,
+                 qkv_bias=True, 
+                 qk_scale=None,
+                 drop_rate=0., 
+                 attn_drop_rate=0., 
+                 drop_path_rate=0.1,
+                 norm_layer=nn.LayerNorm, 
+                 ape=False, 
+                 patch_norm=True,
+                 pretrained="Dictionaries/swin-tiny-patch4-window7-224.bin", 
+                 load_weights='', 
+                 frozen_stages=4,
+                 use_checkpoint=False, 
+                 fused_window_process=False, 
                  final_actv=None,**kwargs):
         super().__init__()
 
@@ -574,7 +593,6 @@ class SwinTransformer(nn.Module):
         self.num_classes = num_classes
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
-
     def _load_weights(self):
         state_dict = torch.load(self.pretrained)
 
@@ -602,7 +620,7 @@ class SwinTransformer(nn.Module):
             for i in range(0, self.frozen_stages):
                 m = self.layers[i]
                 m.eval()
-                for name, param in zip(m.state_dict().keys(),m.parameters()):
+                for param in m.parameters():
                     param.requires_grad = False
 
     def _unfreeze_stages(self):
@@ -632,7 +650,6 @@ class SwinTransformer(nn.Module):
             for param in m.parameters():
                 param.requires_grad = False
 
-
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=.02)
@@ -641,14 +658,6 @@ class SwinTransformer(nn.Module):
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
-
-    @torch.jit.ignore
-    def no_weight_decay(self):
-        return {'absolute_pos_embed'}
-
-    @torch.jit.ignore
-    def no_weight_decay_keywords(self):
-        return {'relative_position_bias_table'}
 
     def forward_features(self, x):
         x = self.patch_embed(x)
@@ -669,12 +678,3 @@ class SwinTransformer(nn.Module):
         x = self.head(x)
         if self.final_actv is not None: x = self.final_actv(x)
         return x
-
-    def flops(self):
-        flops = 0
-        flops += self.patch_embed.flops()
-        for i, layer in enumerate(self.layers):
-            flops += layer.flops()
-        flops += self.num_features * self.patches_resolution[0] * self.patches_resolution[1] // (2 ** self.num_layers)
-        flops += self.num_features * self.num_classes
-        return flops

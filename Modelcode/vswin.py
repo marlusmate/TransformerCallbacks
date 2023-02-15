@@ -1,3 +1,6 @@
+# Copied / adapted from: https://github.com/SwinTransformer/Video-Swin-Transformer/blob/master/mmaction/models/backbones/swin_transformer.py
+# Based on Paper: https://arxiv.org/pdf/2106.13230.pdf
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -438,6 +441,7 @@ class PatchEmbed3D(nn.Module):
             x = x.transpose(1, 2).view(-1, self.embed_dim, D, Wh, Ww)
 
         return x
+
 
 class ClassificationHead(nn.Module):
     """
