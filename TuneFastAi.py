@@ -29,7 +29,7 @@ os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 if __name__ == '__main__':
     os.environ['CUDA_ALLOC_CONF']='max_split_size_mb:19'
     dir = "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take1"
-    model_name = 'vit_tiny_patch16_224'
+    model_name = 'beitv2_base_patch16_224'
     train_name = 'fastai_finetuned'
     pretrained = True
     num_samples = 500
