@@ -154,7 +154,7 @@ class Learner:
     def one_batch(self, i, data):
         self.iter = i,
         self.xb= data[0]
-        self.yb= data[2] #.mean(dim=1) #[:,:,:self.config["PVs"]]
+        self.yb= data[1].mean(dim=1) #[:,:,:self.config["PVs"]]
         if self.cbs is not None: self.cbs.before_batch() 
         self._do_one_batch()
         if self.cbs is not None: self.cbs.after_batch()

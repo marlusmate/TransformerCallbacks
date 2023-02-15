@@ -5,8 +5,19 @@ from PIL import Image
 from tqdm import tqdm
 import shutil
 import json
-from Data import get_multimodal_sequence_paths, shuffle_and_dist_mml
+from Data import get_multimodal_sequence_paths, shuffle_and_dist_mml, load_json
 
+fn_list = []
+gfl, rpm = [], []
+fldir = ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take1", "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take2"]
+for d in fldir:
+    fn_list.extend(glob.glob(os.path.join(d,'*.json')))
+    gfl.extend([load_json(fn)["flow_rate"] for fn in glob.glob(os.path.join(d,'*.json'))])
+    rpm.extend([load_json(fn)["rpm"] for fn in glob.glob(os.path.join(d,'*.json'))])
+print(len(fn_list))
+
+
+"""
 old_dir = "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2020/Run1/Run1"
 new_dir = "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed_Test/"
 fldir = ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take1", "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take2"]
@@ -23,7 +34,7 @@ for fl_img in fl_move:
     for fl_tuple in fl_img:        
         shutil.move(fl_tuple[0], new_dir)
         shutil.move(fl_tuple[1], new_dir)
-
+"""
 """
 cropping_size = (1800, 350) #(1800,350) #Take2  
 resized_size = (224,224)
