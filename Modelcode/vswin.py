@@ -9,7 +9,6 @@ from functools import reduce, lru_cache
 from operator import mul
 from einops import rearrange
 
-
 class Mlp(nn.Module):
     """ Multilayer perceptron."""
 
@@ -58,8 +57,6 @@ def window_reverse(windows, window_size, B, D, H, W):
     x = windows.view(B, D // window_size[0], H // window_size[1], W // window_size[2], window_size[0], window_size[1], window_size[2], -1)
     x = x.permute(0, 1, 4, 2, 5, 3, 6, 7).contiguous().view(B, D, H, W, -1)
     return x
-
-
 
 
 def get_window_size(x_size, window_size, shift_size=None):
@@ -122,12 +119,6 @@ class WindowAttention3D(nn.Module):
         self.register_buffer("relative_position_index", relative_position_index)
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
-        if qkv_bias:
-            self.q_bias = nn.Parameter(torch.zeros(dim))
-            self.v_bias = nn.Parameter(torch.zeros(dim))
-        else:
-            self.q_bias = None
-            self.v_bias = None
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
@@ -141,15 +132,8 @@ class WindowAttention3D(nn.Module):
             x: input features with shape of (num_windows*B, N, C)
             mask: (0/-inf) mask with shape of (num_windows, N, N) or None
         """
-
         B_, N, C = x.shape
-        qkv_bias = None
-        if self.q_bias is not None:
-            qkv_bias = torch.cat((self.q_bias, torch.zeros_like(self.v_bias, requires_grad=False), self.v_bias))
-        #qkv = F.linear(input=x, weight=self.qkv.weight, bias=qkv_bias)
-        qkv= self.qkv(x)
-
-        qkv = qkv.reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # B_, nH, N, C
 
         q = q * self.scale
@@ -289,7 +273,7 @@ class PatchMerging(nn.Module):
         super().__init__()
         self.dim = dim
         self.reduction = nn.Linear(4 * dim, 2 * dim, bias=False)
-        self.norm = norm_layer(2 * dim)
+        self.norm = norm_layer(4 * dim)
 
     def forward(self, x):
         """ Forward function.
@@ -309,9 +293,8 @@ class PatchMerging(nn.Module):
         x3 = x[:, :, 1::2, 1::2, :]  # B D H/2 W/2 C
         x = torch.cat([x0, x1, x2, x3], -1)  # B D H/2 W/2 4*C
 
-        
-        x = self.reduction(x)
         x = self.norm(x)
+        x = self.reduction(x)
 
         return x
 
@@ -488,9 +471,10 @@ class SwinTransformer3D(nn.Module):
     """
 
     def __init__(self,
-                 pretrained="Dictionaries/swinv2-tiny-patch4-window7-224_renamed.bin",
+                 pretrained="Dictionaries/swin-tiny-patch4-window7-224_renamed.bin",
                  pretrained2d=True,
-                 patch_size=(2,4,4),
+                 load_weights = "",
+                 patch_size=(1,4,4),
                  in_chans=1,
                  embed_dim=96,
                  depths=[2, 2, 6, 2],
@@ -503,10 +487,11 @@ class SwinTransformer3D(nn.Module):
                  attn_drop_rate=0.,
                  drop_path_rate=0.2,
                  norm_layer=nn.LayerNorm,
-                 patch_norm=True,
+                 patch_norm=False,
                  frozen_stages=-1,
                  use_checkpoint=False,
-                 pool_spatial = 'mean',
+                 num_classes=3,
+                 global_pool = 'avg',
                  logger=None):
         super().__init__()
 
@@ -518,12 +503,13 @@ class SwinTransformer3D(nn.Module):
         self.frozen_stages = frozen_stages
         self.window_size = window_size
         self.patch_size = patch_size
-        self.global_avg_pool = pool_spatial == 'mean'
+        self.global_avg = global_pool == 'avg'
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed3D(
             patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None)
+
         self.pos_drop = nn.Dropout(p=drop_rate)
 
         # stochastic depth
@@ -533,7 +519,7 @@ class SwinTransformer3D(nn.Module):
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
             layer = BasicLayer(
-                dim=int(embed_dim * 2 **i_layer),
+                dim=int(embed_dim * 2**i_layer),
                 depth=depths[i_layer],
                 num_heads=num_heads[i_layer],
                 window_size=window_size,
@@ -553,9 +539,15 @@ class SwinTransformer3D(nn.Module):
         # add a norm layer for each output
         self.norm = norm_layer(self.num_features)
 
-        self.avgpool = nn.AdaptiveAvgPool1d(1) if self.global_avg_pool else None
+        self.avgpool = nn.AdaptiveAvgPool1d(1) if self.global_avg else None
 
-        self.inflate_weights(logger=logger) 
+        # add a classification head (me)
+        self.head = nn.Sequential(
+            nn.Linear(self.num_features, num_classes)
+        )
+
+        if load_weights != 'skip':
+            self.inflate_weights(logger=logger) 
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
@@ -568,12 +560,10 @@ class SwinTransformer3D(nn.Module):
             for i in range(0, self.frozen_stages):
                 m = self.layers[i]
                 m.eval()
-                for layer_name in m.named_parameters():
-                    if  'norm' in layer_name[0] or 'index' in layer_name[0]:
-                        print("Layer skipped: ", layer_name[0])
-                        continue
-                for param in m.parameters():
-                    param.requires_grad = False
+            #for name, param in zip(self.state_dict().keys(), m.parameters()):
+                #if 'relative' in name:
+                    #continue
+                param.requires_grad = False
 
     def _unfreeze_stages(self):
         if self.frozen_stages >= 0:
@@ -599,7 +589,9 @@ class SwinTransformer3D(nn.Module):
             self.pos_drop.eval()
             m = self.layers[i]
             m.eval()
-            for param in m.parameters():
+            for name, param in zip(self.state_dict().keys(), m.parameters()):
+                if 'index' in name:
+                    continue
                 param.requires_grad = True
 
     def inflate_weights(self, logger):
@@ -627,8 +619,9 @@ class SwinTransformer3D(nn.Module):
         for k in attn_mask_keys:
             del state_dict[k]
 
-        state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].unsqueeze(2).repeat(1,1,self.patch_size[0],1,1).sum(dim=1).unsqueeze(1) / self.patch_size[0]
-
+        state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].sum(dim=1).unsqueeze(1)
+        state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].unsqueeze(2).repeat(1,1,self.patch_size[0],1,1) / self.patch_size[0]
+        #state_dict['patch_embed.proj.weight'].squeeze(1)
         # bicubic interpolate relative_position_bias_table if not match
         relative_position_bias_table_keys = [k for k in state_dict.keys() if "relative_position_bias_table" in k]
         for k in relative_position_bias_table_keys:
@@ -669,28 +662,10 @@ class SwinTransformer3D(nn.Module):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
-        """
-        if pretrained:
-            self.pretrained = pretrained
-        if isinstance(self.pretrained, str):
-            self.apply(_init_weights)
-            logger = get_root_logger()
-            logger.info(f'load model from: {self.pretrained}')
-
-            if self.pretrained2d:
-                # Inflate 2D model into 3D model.
-                self.inflate_weights(logger)
-            else:
-                # Directly load 3D model.
-                load_checkpoint(self, self.pretrained, strict=False, logger=logger)
-        elif self.pretrained is None:
-            self.apply(_init_weights)
-        else:
-            raise TypeError('pretrained must be a str or None')
-        """
 
     def forward(self, x):
         """Forward function."""
+        B, _, _, _, _ = x.shape
         x = self.patch_embed(x)
 
         x = self.pos_drop(x)
@@ -700,9 +675,12 @@ class SwinTransformer3D(nn.Module):
 
         x = rearrange(x, 'n c d h w -> n d h w c')
         x = self.norm(x)
-        x = rearrange(x, 'n d h w c -> n c d h w')
-        x = rearrange(x, 'n c d h w -> n c (d h w)')
-        x = self.avgpool(x) if self.avgpool is not None else x
+        x = rearrange(x, 'n d h w c -> (n h w) c d')
+        x = self.avgpool(x).squeeze(-1)
+        x = rearrange(x, '(n t) c -> n t c', c=self.num_features, n=B)
+        x = x.mean(dim=1)
+        x = self.head(x)
+
         return x
 
     def train(self, mode=True):

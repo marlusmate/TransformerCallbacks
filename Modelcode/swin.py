@@ -10,6 +10,18 @@ import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 
+try:
+    import os, sys
+
+    kernel_path = os.path.abspath(os.path.join('..'))
+    sys.path.append(kernel_path)
+    from kernels.window_process.window_process import WindowProcess, WindowProcessReverse
+
+except:
+    WindowProcess = None
+    WindowProcessReverse = None
+    print("[Warning] Fused window process have not been installed. Please refer to get_started.md for installation.")
+
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
@@ -494,8 +506,9 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 load_pretrained='', frozen_stages=4, pretrained="Dictionaries/swin-tiny-patch4-window7-224.bin",
-                 use_checkpoint=False, fused_window_process=False, **kwargs):
+                 pretrained="Dictionaries/swin-tiny-patch4-window7-224.bin", load_weights='', frozen_stages=4,
+                 use_checkpoint=False, fused_window_process=False, 
+                 final_actv=None,**kwargs):
         super().__init__()
 
         self.num_classes = num_classes
@@ -505,9 +518,9 @@ class SwinTransformer(nn.Module):
         self.patch_norm = patch_norm
         self.num_features = int(embed_dim * 2 ** (self.num_layers - 1))
         self.mlp_ratio = mlp_ratio
-        self.load_pretrained = load_pretrained
-        self.frozen_stages = frozen_stages
         self.pretrained = pretrained
+        self.load_weights = load_weights
+        self.frozen_stages = frozen_stages
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed(
@@ -549,13 +562,22 @@ class SwinTransformer(nn.Module):
         self.norm = norm_layer(self.num_features)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
+        
+        if final_actv is not None:
+            self.final_actv = nn.Softmax(dim=-1) if final_actv=='soft' else nn.ReLU()
+        else:
+            self.final_actv = None
 
-        self.apply(self._init_weights) if self.load_pretrained =='skip' else self.load_weights()
+        self.apply(self._init_weights) if self.load_weights=='skip' else self._load_weights()
 
-    def load_weights(self):
-        state_dict = torch.load(self.pretrained, map_location='cpu')
+    def reset_classifier(self, num_classes: int, global_pool=None):
+        self.num_classes = num_classes
+        self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
-        # delete relative_position_index since we always re-init it
+
+    def _load_weights(self):
+        state_dict = torch.load(self.pretrained)
+
         relative_position_index_keys = [k for k in state_dict.keys() if "relative_position_index" in k]
         for k in relative_position_index_keys:
             del state_dict[k]
@@ -565,9 +587,9 @@ class SwinTransformer(nn.Module):
         for k in attn_mask_keys:
             del state_dict[k]
 
-        #state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].unsqueeze(2).repeat(1,1,self.patch_size[0],1,1).sum(dim=1).unsqueeze(1) / self.patch_size[0]
-        state_dict['patch_embed.proj.weight'] = state_dict["patch_embed.proj.weight"].sum(dim=1).unsqueeze(1)   
+        state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].sum(dim=1).unsqueeze(1)
         self.load_state_dict(state_dict, strict=False)
+        print("Pretrained Weights loaded")
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
@@ -580,10 +602,7 @@ class SwinTransformer(nn.Module):
             for i in range(0, self.frozen_stages):
                 m = self.layers[i]
                 m.eval()
-                for layer_name in m.named_parameters():
-                    if  'norm' in layer_name[0] or 'index' in layer_name[0] or 'bias' in layer_name[0]:
-                        continue
-                for param in m.parameters():
+                for name, param in zip(m.state_dict().keys(),m.parameters()):
                     param.requires_grad = False
 
     def _unfreeze_stages(self):
@@ -599,6 +618,20 @@ class SwinTransformer(nn.Module):
                 m.eval()
                 for param in m.parameters():
                     param.requires_grad = True
+
+    def _unfreeze_block(self, i):
+        if i == 0:
+            self.patch_embed.eval()
+            for param in self.patch_embed.parameters():
+                param.requires_grad = True
+
+        if i >= 1:
+            self.pos_drop.eval()
+            m = self.layers[i]
+            m.eval()
+            for param in m.parameters():
+                param.requires_grad = False
+
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -634,6 +667,7 @@ class SwinTransformer(nn.Module):
     def forward(self, x):
         x = self.forward_features(x)
         x = self.head(x)
+        if self.final_actv is not None: x = self.final_actv(x)
         return x
 
     def flops(self):

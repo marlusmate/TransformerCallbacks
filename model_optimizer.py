@@ -50,7 +50,7 @@ def build_optimizer(config, model, simmim=False, is_pretrain=False, parameters=N
     return optimizer
 
 
-def build_adamw(model, epsilon, betas, lr, we_decay):
+def build_adamw(model,lr, we_decay):
     skip = {}
     skip_keywords = {}
     if hasattr(model, 'no_weight_decay'):
@@ -58,7 +58,7 @@ def build_adamw(model, epsilon, betas, lr, we_decay):
     if hasattr(model, 'no_weight_decay_keywords'):
         skip_keywords = model.no_weight_decay_keywords()
     parameters = set_weight_decay(model, skip, skip_keywords)
-    optimizer = optim.AdamW(parameters, eps=epsilon, betas=betas, lr=lr, weight_decay=we_decay)
+    optimizer = optim.AdamW(parameters, lr=lr, weight_decay=we_decay)
 
     return optimizer
 

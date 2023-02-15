@@ -7,6 +7,23 @@ import math
 import numpy as np
 from learner_fastai import Learner
 import json
+from Modelcode.swin import SwinTransformer
+from Modelcode.vit import VisionTransformer
+from Modelcode.vswin import SwinTransformer3D
+from Modelcode.vswin_multimodal import SwinTransformer3D as MSwinTransformer3D
+from Modelcode.vivit import VisionTransformer3D
+
+"""
+def buid_model(name, img_size=224):
+    if 'vit-tiny-patch16-224' in name:
+        model = VisionTransformer(
+            
+        )
+    elif 'swin-tiny-patch4-window7-224' in name:
+    elif 'vivit-tiny-patch16-224' in name:
+    elif 'vswin-tiny-patch4-window_7_224' in name:
+    return model
+"""
 
 def dump_json(fn, dest):
     with open(dest, 'w+') as f:

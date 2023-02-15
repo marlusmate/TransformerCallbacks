@@ -1,0 +1,57 @@
+'model_name' : 'vswin-tiny-patch4-window7-224'
+'fldir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take1", "/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed/Take2"]
+'test_dir' : ["/mnt/data_sdd/flow_regime_recognition_multimodal_Esser_2022_preprocessed_Test"]
+'epochs_total': 12
+'epochs_froozen': 10
+'n_inst': 
+'n_inst_percentage': 100
+'train_inst' : 
+'val_sz': 0.75
+'seq_len': 20
+'batch_size': 7
+'base_lr' : 0.0001
+'min_lr': 0.00000025
+'warmup_lr': 0.00000025
+'we_decay' : 0.05
+'layer_decay' : 0.08
+'drop_rate' : 0.3
+'attn_drop_rate' : 0.2
+'drop_path_rate' : 0.1
+'patch_size' : [1,4,4]
+'window_size' : [2, 7,7]
+
+'Model': 'vswin-tiny-patch4-window7-224'
+'TrainType': SelfsupervisedLearning
+'Problem' : classification
+'SpatialWeights': scratch
+'TemporalWeights': None
+'TrainEmbed' : False
+'TrainSpatial': False
+'TrainTemporal': True # freezing
+'TrainHead': True
+'Seeds': [0]
+
+'eval_dir' : "Evaluation"
+'seed' : 0
+'pretrained' : ''
+'pretraineddir' : 'Models/vswin-tiny-patch4-window7-224_finetune_pv/model_callback'
+'PVs': 2
+'min_val_loss' : 0.2
+'min_delta_loss': 0.09
+'patience': 10
+'pretrained_dir':
+'num_classes' : 2
+'final_actv' :  relu #{relu, soft, }
+'loss' :  huber # {cross, huber}
+'transfer_learning' : False
+'pv_learning' : True
+'reset_head' : True
+'overhead' : False
+'fine_tune' : True
+'opt' : fastai # {cos, fastai}
+'scheduler' : cosine
+'warmup_ep' : 0
+'warmup_prefix' : True
+'testonly' : False
+'spatial_pool' : avg
+
