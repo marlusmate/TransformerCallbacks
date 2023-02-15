@@ -1,18 +1,13 @@
-import logging
-import math
-from collections import OrderedDict
-from functools import partial
-from typing import Optional, List
+# Adapted from: https://github.com/rwightman/pytorch-image-models/blob/main/timm/models/vision_transformer.py
+# Based on Paper: https://arxiv.org/abs/2010.11929
 
+import math
+from functools import partial
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.utils.checkpoint as checkpoint
-from itertools import repeat, chain
-from typing import Callable
+from itertools import repeat
 import collections.abc
 import warnings
-
 
 
 def _ntuple(n):
@@ -22,15 +17,8 @@ def _ntuple(n):
         return tuple(repeat(x, n))
     return parse
 
-
 to_1tuple = _ntuple(1)
 to_2tuple = _ntuple(2)
-
-try:
-    from torch import _assert
-except ImportError:
-    def _assert(condition: bool, message: str):
-        assert condition, message
 
 def _trunc_normal_(tensor, mean, std, a, b):
     # Cut & paste from PyTorch official master until it's in a few official releases - RW
@@ -135,8 +123,8 @@ class PatchEmbed(nn.Module):
 
     def forward(self, x):
         B, C, H, W = x.shape
-        _assert(H == self.img_size[0], f"Input image height ({H}) doesn't match model ({self.img_size[0]}).")
-        _assert(W == self.img_size[1], f"Input image width ({W}) doesn't match model ({self.img_size[1]}).")
+        assert H == self.img_size[0], f"Input image height ({H}) doesn't match model ({self.img_size[0]})."
+        assert W == self.img_size[1], f"Input image width ({W}) doesn't match model ({self.img_size[1]})."
         x = self.proj(x)
         if self.flatten:
             x = x.flatten(2).transpose(1, 2)  # BCHW -> BNC
@@ -341,7 +329,6 @@ class VisionTransformer(nn.Module):
         self.grad_checkpointing = False
         self.pre_logits = pre_logits
         self.pretrained=pretrained 
-        #self.freeze_epochs = freeze_epochs
         self.frozen_stages = frozen_stages
         self.overhead = overhead
 
@@ -426,34 +413,6 @@ class VisionTransformer(nn.Module):
             if self.overhead:
                 for param in self.head[0].parameters():
                     param.requires_grad = True
-
-    def _init_weights(self, m):
-        # this fn left here for compat with downstream users
-        init_weights_vit_timm(m)
-
-    @torch.jit.ignore()
-    def load_pretrained(self, checkpoint_path, prefix=''):
-        print("u should have own function")
-        #_load_weights(self, checkpoint_path, prefix)
-
-    @torch.jit.ignore
-    def no_weight_decay(self):
-        return {'pos_embed', 'cls_token', 'dist_token'}
-
-    @torch.jit.ignore
-    def group_matcher(self, coarse=False):
-        return dict(
-            stem=r'^cls_token|pos_embed|patch_embed',  # stem and embed
-            blocks=[(r'^blocks\.(\d+)', None), (r'^norm', (99999,))]
-        )
-
-    @torch.jit.ignore
-    def set_grad_checkpointing(self, enable=True):
-        self.grad_checkpointing = enable
-
-    @torch.jit.ignore
-    def get_classifier(self):
-        return self.head
 
     def reset_classifier(self, num_classes: int, global_pool=None):
         self.num_classes = num_classes

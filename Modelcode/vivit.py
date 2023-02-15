@@ -475,15 +475,15 @@ class VisionTransformer3D(nn.Module):
                 m.eval()
                 for param in m.parameters():
                     param.requires_grad = False 
-        """
+        
         if self.transfer_learning:
                 self.blocks_temp.eval()
                 for i in range(0, len(self.blocks_temp)):
                     m = self.blocks_temp[i]
                     m.eval()
-                    for name, param in zip(self.state_dict().keys(), m.parameters()):
+                    for param in m.parameters():
                         param.requires_grad = False 
-        """
+
     def _unfreeze_stages(self):
         if self.train_embed:
             self.patch_embed.eval()
@@ -503,36 +503,8 @@ class VisionTransformer3D(nn.Module):
                 for i in range(0, len(self.blocks_temp)):
                     m = self.blocks_temp[i]
                     m.eval()
-                    for name, param in zip(self.state_dict().keys(), m.parameters()):
+                    for param in m.parameters():
                         param.requires_grad = True     
-
-    def _init_weights(self, m):
-        # this fn left here for compat with downstream users
-        init_weights_vit_timm(m)
-
-    @torch.jit.ignore()
-    def load_pretrained(self, checkpoint_path, prefix=''):
-        print("u should have own function")
-        #_load_weights(self, checkpoint_path, prefix)
-
-    @torch.jit.ignore
-    def no_weight_decay(self):
-        return {'pos_embed', 'cls_token', 'dist_token'}
-
-    @torch.jit.ignore
-    def group_matcher(self, coarse=False):
-        return dict(
-            stem=r'^cls_token|pos_embed|patch_embed',  # stem and embed
-            blocks=[(r'^blocks\.(\d+)', None), (r'^norm', (99999,))]
-        )
-
-    @torch.jit.ignore
-    def set_grad_checkpointing(self, enable=True):
-        self.grad_checkpointing = enable
-
-    @torch.jit.ignore
-    def get_classifier(self):
-        return self.head
 
     def reset_classifier(self, num_classes: int, global_pool=None):
         self.num_classes = num_classes
