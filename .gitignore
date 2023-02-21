@@ -8,6 +8,8 @@ ImageModules/__pycache__
 mlruns
 Models
 LoggedRunsCSV
+Fastai/Finetuning
+Fastai/Evaluation
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

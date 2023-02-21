@@ -4,8 +4,7 @@
 # https://github.com/fastai/fastai/blob/master/fastai/callback/schedule.py
 
 from torch import no_grad, save, tensor, load
-from tqdm import tqdm
-from learner_utils import combine_scheds, combined_cos, dump_json
+from learner_utils import combined_cos, dump_json
 from callbacks import ParamScheduler
 from torch import nn, tensor, mean
 from functools import partial
